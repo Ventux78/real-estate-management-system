@@ -1,23 +1,22 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     // --- Hedef ve Modül ---
     "target": "ES2022",
     // Node.js 18+ ES2022'yi native destekler.
     // ES2022 ile async/await, nullish coalescing, optional chaining native gelir.
-
     "module": "commonjs",
     // Node.js'in native modül sistemi. ESM (ES modules) Node'da hâlâ
     // bazı ekosistem uyumsuzlukları yaratır. CommonJS güvenli ve olgun.
-
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     // TypeScript'e hangi built-in tiplerin mevcut olduğunu söyler.
-
     // --- Output ---
     "outDir": "./dist",
     // Derlenmiş JS dosyaları buraya gider.
     // Not: rootDir tsconfig.build.json'da tanımlanmıştır (build için).
     // Bu dosya tip kontrolü ve testler için kullanılır.
-
     // --- Tip Güvenliği ---
     "strict": true,
     // Tüm strict kontrolleri açar:
@@ -25,61 +24,74 @@
     //   noImplicitAny: any tipi zorunlu olarak belirtilmeli
     //   strictFunctionTypes: fonksiyon tipi uyumsuzlukları hata verir
     // Bu flag production-grade kod için tartışmasız gereklidir.
-
     "noUncheckedIndexedAccess": true,
     // arr[0] tipini T yerine T | undefined yapar. Array erişiminde
     // null check zorunlu olur. Runtime hataları azaltır.
-
     "noImplicitReturns": true,
     // Tüm code path'lerin değer döndürmesini zorunlu kılar.
-
     "noFallthroughCasesInSwitch": true,
     // switch/case fall-through'u engeller.
-
     // --- Modül Çözümleme ---
     "moduleResolution": "node",
     // Node.js'in module resolution algoritmasını kullanır.
-
     "esModuleInterop": true,
     // CommonJS modülleri default import ile import edilebilir:
     // import express from 'express' (yerine import * as express)
-
     "resolveJsonModule": true,
     // JSON dosyalarını import etmeye izin verir.
-
     "allowSyntheticDefaultImports": true,
     // esModuleInterop ile birlikte çalışır.
-
     // --- Import Alias ---
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@/config/*": ["src/config/*"],
-      "@/lib/*": ["src/lib/*"],
-      "@/modules/*": ["src/modules/*"],
-      "@/middlewares/*": ["src/middlewares/*"],
-      "@/utils/*": ["src/utils/*"],
-      "@/types/*": ["src/types/*"],
-      "@/common/*": ["src/common/*"],
-      "@/services/*": ["src/services/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@/config/*": [
+        "src/config/*"
+      ],
+      "@/lib/*": [
+        "src/lib/*"
+      ],
+      "@/modules/*": [
+        "src/modules/*"
+      ],
+      "@/middlewares/*": [
+        "src/middlewares/*"
+      ],
+      "@/utils/*": [
+        "src/utils/*"
+      ],
+      "@/types/*": [
+        "src/types/*"
+      ],
+      "@/common/*": [
+        "src/common/*"
+      ],
+      "@/services/*": [
+        "src/services/*"
+      ]
     },
     // @/ prefix'i ile mutlak import yolları.
     // ../../../../middlewares yerine @/middlewares/errorHandler
-
     // --- Kaynak Haritası ---
     "sourceMap": true,
     // Hata stack trace'lerini TypeScript kaynak satırlarına eşler.
     // Debug ve log analizinde kritik.
-
     // --- Diğer ---
     "skipLibCheck": true,
     // node_modules içindeki .d.ts dosyalarını tip kontrolüne dahil etmez.
     // Bağımlılık tip çakışmalarını sessizce geçer. Derleme hızını artırır.
-
     "forceConsistentCasingInFileNames": true
     // Dosya adı büyük/küçük harf tutarsızlıklarını engeller.
     // Linux/macOS arasındaki davranış farkını önler.
   },
-  "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
