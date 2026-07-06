@@ -1,0 +1,18 @@
+# ============================================================
+# Gayrimenkul Admin — Python Bağımlılıkları
+# ============================================================
+# Python 3.13+ gerektirir.
+# Kurulum: pip install -r requirements.txt
+# ============================================================
+
+# GUI Framework — Qt for Python
+PySide6>=6.7.0
+
+# HTTP Client — Backend API iletişimi
+requests>=2.32.0
+
+# Environment Variables — .env dosyası okuma
+python-dotenv>=1.0.0
+
+# Type Stubs (geliştirme ortamı için)
+types-requests>=2.32.0

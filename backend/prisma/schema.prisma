@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enum Definitions ────────────────────────────────────────────────────────
+
+enum ListingType {
+  FOR_SALE
+  FOR_RENT
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  LAND
+  OFFICE
+  SHOP
+  WAREHOUSE
+  OTHER
+}
+
+enum HeatingType {
+  NATURAL_GAS
+  ELECTRIC
+  FLOOR_HEATING
+  COAL
+  NONE
+  OTHER
+}
+
+enum DeedStatus {
+  FREEHOLD
+  CONDOMINIUM
+  FLOOR_EASEMENT
+  SHARED
+  OTHER
+}
+
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique @db.VarChar(50)
+  email        String     @unique @db.VarChar(254)
+  passwordHash String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  properties   Property[]
+}
+
+// ─── Property Model ───────────────────────────────────────────────────────────
+
+model Property {
+  // Identity
+  id           String      @id @default(uuid())
+  slug         String      @unique
+  title        String
+  listingType  ListingType
+  propertyType PropertyType
+
+  // Price & Location
+  price    Decimal
+  city     String
+  district String
+  address  String
+
+  // Optional descriptive fields
+  description     String?
+  neighborhood    String?
+  grossArea       Decimal?
+  netArea         Decimal?
+  roomCount       Int?
+  livingRoomCount Int?
+  bathroomCount   Int?
+  floor           Int?
+  totalFloor      Int?
+  buildingAge     Int?
+  heatingType     HeatingType?
+  dues            Decimal?
+  deedStatus      DeedStatus?
+  latitude        Float?
+  longitude       Float?
+  videoUrl        String?
+  virtualTourUrl  String?
+
+  // Boolean feature flags
+  furnished          Boolean @default(false)
+  balcony            Boolean @default(false)
+  elevator           Boolean @default(false)
+  parking            Boolean @default(false)
+  eligibleForCredit  Boolean @default(false)
+  exchangeAvailable  Boolean @default(false)
+  isFeatured         Boolean @default(false)
+  isPublished        Boolean @default(false)
+
+  // Timestamps & ownership
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String
+
+  // Relations
+  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  images    PropertyImage[]
+
+  // Indexes
+  @@index([city])
+  @@index([district])
+  @@index([price])
+  @@index([listingType])
+  @@index([propertyType])
+  @@index([isPublished])
+  @@index([deletedAt])
+  @@index([createdById])
+  @@index([city, listingType, isPublished])
+}
+
+// ─── PropertyImage Model ──────────────────────────────────────────────────────
+
+model PropertyImage {
+  id           String   @id @default(uuid())
+  propertyId   String
+  url          String   @db.VarChar(2048)
+  publicId     String   @db.VarChar(255)
+  width        Int
+  height       Int
+  format       String   @db.VarChar(10)
+  bytes        Int
+  displayOrder Int
+  isCover      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  // Relation
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  // Constraints
+  @@unique([propertyId, displayOrder])
+}
