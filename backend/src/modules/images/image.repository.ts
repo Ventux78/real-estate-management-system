@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { PropertyImage, Prisma } from '@/generated/prisma-client';
+import { PropertyImage, Prisma } from '@prisma/client';
 import { ReorderImageDto } from './image.types';
 
 export const imageRepository = {

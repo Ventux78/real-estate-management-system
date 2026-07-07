@@ -14,8 +14,8 @@ import { AppError } from '@/common/errors/AppError';
 import { propertyRepository } from './property.repository';
 import { generateUniqueSlug } from './utils/slugUtils';
 
-import type { Property, PropertyImage, Prisma } from '@/generated/prisma-client';
-import { HeatingType, DeedStatus } from '@/generated/prisma-client';
+import type { Property, PropertyImage, Prisma } from '@prisma/client';
+import { HeatingType, DeedStatus } from '@prisma/client';
 import type {
   PropertyDto,
   PropertyImageDto,
@@ -126,9 +126,9 @@ export const propertyService = {
       ...(dto.floor !== undefined && { floor: dto.floor }),
       ...(dto.totalFloor !== undefined && { totalFloor: dto.totalFloor }),
       ...(dto.buildingAge !== undefined && { buildingAge: dto.buildingAge }),
-      ...(dto.heatingType !== undefined && { heatingType: dto.heatingType as import('@/generated/prisma-client').HeatingType }),
+      ...(dto.heatingType !== undefined && { heatingType: dto.heatingType as import('@prisma/client').HeatingType }),
       ...(dto.dues !== undefined && { dues: dto.dues }),
-      ...(dto.deedStatus !== undefined && { deedStatus: dto.deedStatus as import('@/generated/prisma-client').DeedStatus }),
+      ...(dto.deedStatus !== undefined && { deedStatus: dto.deedStatus as import('@prisma/client').DeedStatus }),
       ...(dto.latitude !== undefined && { latitude: dto.latitude }),
       ...(dto.longitude !== undefined && { longitude: dto.longitude }),
       ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),

@@ -9,7 +9,7 @@
  */
 
 import * as fc from 'fast-check';
-import { PrismaClientKnownRequestError } from '../../../src/generated/prisma-client/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 // ─── Mock PrismaClient Helper ─────────────────────────────────────────────────
 

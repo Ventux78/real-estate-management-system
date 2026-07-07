@@ -117,7 +117,7 @@ function createMockPrismaClient() {
 // used inside seed.ts. Each test uses jest.isolateModules to get a fresh
 // copy of the seed module with a dedicated mock client.
 
-jest.mock('@/generated/prisma-client', () => {
+jest.mock('@prisma/client', () => {
   // Placeholder — overridden per-test via jest.isolateModules
   return { PrismaClient: jest.fn() };
 });
@@ -135,7 +135,7 @@ async function loadSeedWithMock(
   let mod!: SeedModule;
 
   jest.isolateModules(() => {
-    jest.mock('@/generated/prisma-client', () => {
+    jest.mock('@prisma/client', () => {
       const MockPrismaClient = jest.fn().mockImplementation(() => mockClient);
       return { PrismaClient: MockPrismaClient };
     });

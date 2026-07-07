@@ -9,7 +9,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import type { Property, Prisma } from '@/generated/prisma-client';
+import type { Property, Prisma } from '@prisma/client';
 
 // ─── FindManyParams ───────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ export const propertyRepository = {
    *
    * Requirements: 1.1
    */
-  async create(data: Prisma.PropertyCreateInput): Promise<Property & { images: import('@/generated/prisma-client').PropertyImage[] }> {
+  async create(data: Prisma.PropertyCreateInput): Promise<Property & { images: import('@prisma/client').PropertyImage[] }> {
     return prisma.property.create({
       data,
       include: { images: true },
@@ -49,7 +49,7 @@ export const propertyRepository = {
    *
    * Requirements: 2.1, 2.5, 2.6
    */
-  async findMany(params: FindManyParams): Promise<[Array<Property & { images: import('@/generated/prisma-client').PropertyImage[] }>, number]> {
+  async findMany(params: FindManyParams): Promise<[Array<Property & { images: import('@prisma/client').PropertyImage[] }>, number]> {
     const {
       page,
       limit,
@@ -104,7 +104,7 @@ export const propertyRepository = {
    *
    * Requirements: 3.1
    */
-  async findById(id: string): Promise<(Property & { images: import('@/generated/prisma-client').PropertyImage[] }) | null> {
+  async findById(id: string): Promise<(Property & { images: import('@prisma/client').PropertyImage[] }) | null> {
     return prisma.property.findFirst({
       where: {
         id,
@@ -123,7 +123,7 @@ export const propertyRepository = {
   async update(
     id: string,
     data: Prisma.PropertyUpdateInput,
-  ): Promise<Property & { images: import('@/generated/prisma-client').PropertyImage[] }> {
+  ): Promise<Property & { images: import('@prisma/client').PropertyImage[] }> {
     return prisma.property.update({
       where: { id },
       data,
@@ -136,7 +136,7 @@ export const propertyRepository = {
    *
    * Requirements: 5.1, 5.4
    */
-  async softDelete(id: string): Promise<Property & { images: import('@/generated/prisma-client').PropertyImage[] }> {
+  async softDelete(id: string): Promise<Property & { images: import('@prisma/client').PropertyImage[] }> {
     return prisma.property.update({
       where: { id },
       data: { deletedAt: new Date() },

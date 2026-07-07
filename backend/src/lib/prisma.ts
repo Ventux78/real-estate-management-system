@@ -10,7 +10,7 @@
  *   If $disconnect() fails, logs the error and exits with code 1.
  */
 
-import { PrismaClient } from '@/generated/prisma-client';
+import { PrismaClient } from '@prisma/client';
 
 // Extend the NodeJS global type so TypeScript accepts global.__prisma
 declare global {

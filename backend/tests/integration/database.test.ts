@@ -7,7 +7,7 @@
  * Requirements: 11.1, 11.2, 11.3, 11.4
  */
 
-import { PrismaClient } from '@/generated/prisma-client';
+import { PrismaClient } from '@prisma/client';
 
 // Guard: DATABASE_URL tanımlı değilse testi anlamlı bir hatayla sonlandır
 if (!process.env['DATABASE_URL']) {

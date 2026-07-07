@@ -3,4 +3,4 @@ dist/
 .env
 coverage/
 *.js.map
-src/generated/prisma-client/
+

@@ -32,7 +32,7 @@ async function loadPrismaModule(nodeEnv: string): Promise<PrismaModule> {
 
   jest.isolateModules(() => {
     // Re-apply the mock inside the isolated registry
-    jest.mock('@/generated/prisma-client', () => {
+    jest.mock('@prisma/client', () => {
       const disconnect = jest.fn().mockResolvedValue(undefined);
       const connect = jest.fn().mockResolvedValue(undefined);
       const MockPrismaClient = jest.fn().mockImplementation(() => ({
@@ -56,7 +56,7 @@ async function loadPrismaModule(nodeEnv: string): Promise<PrismaModule> {
 
 // We declare the mock at the top level so it applies to all tests.
 // Individual tests may override behaviour via mockReturnValue / mockRejectedValue.
-jest.mock('@/generated/prisma-client', () => {
+jest.mock('@prisma/client', () => {
   const disconnect = jest.fn().mockResolvedValue(undefined);
   const connect = jest.fn().mockResolvedValue(undefined);
   const MockPrismaClient = jest.fn().mockImplementation(() => ({
@@ -115,7 +115,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       let secondInstance: unknown;
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -128,7 +128,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       // Module registry is fresh, but global.__prisma should carry over
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -149,7 +149,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       delete (global as any).__prisma;
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -175,7 +175,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       delete (global as any).__prisma;
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -195,7 +195,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       let exported: unknown;
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -221,7 +221,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       jest.isolateModules(() => {
         disconnectMock = jest.fn().mockResolvedValue(undefined);
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: disconnectMock,
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -248,7 +248,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       jest.isolateModules(() => {
         disconnectMock = jest.fn().mockResolvedValue(undefined);
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: disconnectMock,
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -276,7 +276,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       const dbError = new Error('DB disconnect failed');
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockRejectedValue(dbError),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -300,7 +300,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       const dbError = new Error('DB disconnect failed');
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockRejectedValue(dbError),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -322,7 +322,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
       process.env['NODE_ENV'] = 'production';
 
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -350,7 +350,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       let exported: unknown;
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
@@ -371,7 +371,7 @@ describe('PrismaClient Singleton — src/lib/prisma.ts', () => {
 
       let exported: PrismaModule['prisma'] | undefined;
       jest.isolateModules(() => {
-        jest.mock('@/generated/prisma-client', () => {
+        jest.mock('@prisma/client', () => {
           const MockPrismaClient = jest.fn().mockImplementation(() => ({
             $disconnect: jest.fn().mockResolvedValue(undefined),
             $connect: jest.fn().mockResolvedValue(undefined),
