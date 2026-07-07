@@ -22,7 +22,7 @@ export const propertyService = {
   getPropertyBySlug: async (slug: string): Promise<Property> => {
     // Backend'de /slug/:slug endpoint'i olmadığı ve yeni endpoint eklememiz
     // istenmediği için, listeyi çekip içinden buluyoruz. (Geçici çözüm)
-    const response = await api.get('/properties?limit=1000');
+    const response = await api.get('/properties?limit=100');
     const payload = (response as any).success ? (response as any).data : response;
     const properties = payload.data as Property[];
     const property = properties.find((p) => p.slug === slug);

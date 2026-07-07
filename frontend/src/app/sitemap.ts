@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     // Get all properties for dynamic routes
-    const propertiesResponse = await propertyService.getProperties({ limit: 1000 });
+    const propertiesResponse = await propertyService.getProperties({ limit: 100 });
     
     const propertyRoutes = propertiesResponse.data.map((property) => ({
       url: `${baseUrl}/properties/${property.slug}`,
