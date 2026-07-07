@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
     // --- Hedef ve Modül ---
     "target": "ES2022",
     // Node.js 18+ ES2022'yi native destekler.
