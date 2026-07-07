@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { Container } from '@/components/ui/Container';
 import { propertyService } from '@/services/property.service';
 import { PropertyGallery } from '@/components/properties/PropertyGallery';
-import { MapPin, Bed, Maximize, Calendar, Hash, Phone } from 'lucide-react';
+import { Calendar, Hash, MapPin, Bed, Bath, Maximize, Ruler, Home, Phone, Share2, Check, ExternalLink } from 'lucide-react';
+import { WhatsAppButton } from '@/components/properties/WhatsAppButton';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 
@@ -170,10 +171,7 @@ export default async function PropertyDetailPage({
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-slate-100">
-                  <Button size="lg" className="w-full h-14 text-lg">
-                    <Phone className="w-5 h-5 mr-2" />
-                    İletişime Geç
-                  </Button>
+                  <WhatsAppButton />
                 </div>
               </div>
             </div>
