@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { Container } from '@/components/ui/Container';
 import { Section } from '@/components/ui/Section';
 import { Button } from '@/components/ui/Button';
-import { Search, Home, MapPin, Key } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { LatestPropertiesSection } from '@/components/properties/LatestPropertiesSection';
+
+export const revalidate = 60; // ISR cache (1 dakika)
+
 
 export default function HomePage() {
   return (
@@ -36,43 +40,8 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* Features */}
-      <Section className="bg-[#121212]">
-        <Container>
-          <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Neden Bizi Seçmelisiniz?</h2>
-            <p className="mt-4 text-lg text-[#A1A1AA]">Sektördeki tecrübemizle size en iyi hizmeti sunuyoruz.</p>
-          </div>
-          
-          <div className="grid gap-8 md:grid-cols-3">
-            {[
-              {
-                icon: Home,
-                title: "Geniş Portföy",
-                desc: "Her bütçeye ve ihtiyaca uygun binlerce güncel ilan."
-              },
-              {
-                icon: MapPin,
-                title: "Doğru Konum",
-                desc: "Şehrin en gözde lokasyonlarındaki fırsatları yakalayın."
-              },
-              {
-                icon: Key,
-                title: "Güvenli İşlem",
-                desc: "Uzman kadromuzla tüm süreçlerde yanınızdayız."
-              }
-            ].map((f, i) => (
-              <div key={i} className="rounded-2xl border border-[#333333] bg-[#1E1E1E] p-8 shadow-sm text-center">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10 text-brand-500">
-                  <f.icon className="h-8 w-8" />
-                </div>
-                <h3 className="mb-3 text-xl font-semibold text-white">{f.title}</h3>
-                <p className="text-[#A1A1AA]">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </Container>
-      </Section>
+      {/* Latest Properties */}
+      <LatestPropertiesSection />
     </>
   );
 }
