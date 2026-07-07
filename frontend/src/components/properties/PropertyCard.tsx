@@ -11,7 +11,7 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property }: PropertyCardProps) {
-  const coverImage = property.images?.find((img) => img.isCover)?.url || property.images?.[0]?.url || '/placeholder.jpg';
+  const coverImage = property.images?.find((img) => img.isCover)?.imageUrl || property.images?.[0]?.imageUrl || '/placeholder.jpg';
   
   const typeMap: Record<string, string> = {
     HOUSE: 'Ev',

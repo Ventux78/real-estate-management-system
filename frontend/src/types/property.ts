@@ -1,6 +1,6 @@
 export interface PropertyImage {
   id: string;
-  url: string;
+  imageUrl: string;
   isCover: boolean;
   displayOrder: number;
 }

@@ -55,7 +55,7 @@ export function PropertyGallery({ images, title }: PropertyGalleryProps) {
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-[#121212] shadow-inner group">
         {activeImage && (
           <Image
-            src={activeImage.url}
+            src={activeImage.imageUrl}
             alt={title}
             fill
             priority
@@ -102,7 +102,7 @@ export function PropertyGallery({ images, title }: PropertyGalleryProps) {
               aria-current={activeIndex === idx ? 'true' : 'false'}
             >
               <Image
-                src={img.url}
+                src={img.imageUrl}
                 alt={`${title} küçük görsel ${idx + 1}`}
                 fill
                 sizes="128px"

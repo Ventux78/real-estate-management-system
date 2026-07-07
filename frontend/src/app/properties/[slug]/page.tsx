@@ -23,7 +23,7 @@ export async function generateMetadata({
       openGraph: {
         title: property.title,
         description: property.description?.substring(0, 160) || property.title,
-        images: property.images.length > 0 ? [property.images.find(i => i.isCover)?.url || property.images[0].url] : [],
+        images: property.images.length > 0 ? [property.images.find(i => i.isCover)?.imageUrl || property.images[0].imageUrl] : [],
       },
     };
   } catch (error) {
