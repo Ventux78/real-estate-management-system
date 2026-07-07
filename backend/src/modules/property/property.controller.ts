@@ -43,11 +43,16 @@ export const propertyController = {
    */
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      console.log('--- req.query IN LIST ---', req.query);
       const query = paginationSchema.parse(req.query);
       const result = await propertyService.listProperties(query);
       const response: SuccessResponse<PaginatedPropertyResult> = { success: true, data: result };
       res.status(200).json(response);
     } catch (err) {
+      console.error('--- VALIDATION ERROR ---', err);
+      if (err && (err as any).name === 'ZodError') {
+         console.error(JSON.stringify((err as any).flatten(), null, 2));
+      }
       next(err);
     }
   },
