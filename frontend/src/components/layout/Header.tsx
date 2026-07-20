@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Container } from '@/components/ui/Container';
 import { Home, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -9,7 +10,7 @@ export function Header() {
       <Container>
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2 text-brand-500 transition-colors hover:text-brand-600">
-            <Home className="h-6 w-6" />
+            <Image src="/icon.png?v=1" alt="Baştuğ Gayrimenkul Logo" width={24} height={24} className="h-6 w-auto" unoptimized />
             <span className="text-xl font-bold tracking-tight">Baştuğ Gayrimenkul</span>
           </Link>
           
