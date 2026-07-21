@@ -50,8 +50,9 @@ export const propertyController = {
       res.status(200).json(response);
     } catch (err) {
       console.error('--- VALIDATION ERROR ---', err);
-      if (err && (err as any).name === 'ZodError') {
-         console.error(JSON.stringify((err as any).flatten(), null, 2));
+      if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ZodError') {
+        const zodErr = err as unknown as { flatten: () => unknown };
+        console.error(JSON.stringify(zodErr.flatten(), null, 2));
       }
       next(err);
     }

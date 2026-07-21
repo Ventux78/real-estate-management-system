@@ -1,18 +1,21 @@
 import { api } from './api';
 import { Property, PropertiesResponse, PropertyFilters } from '@/types/property';
+import { withRetry } from '@/lib/retryFetch';
 
 export const propertyService = {
   getProperties: async (filters: PropertyFilters = {}): Promise<PropertiesResponse> => {
     // Only published properties should be visible to public users
     const apiFilters = { ...filters };
     if ('search' in apiFilters) delete apiFilters.search;
-    
+
     const query = new URLSearchParams({ ...apiFilters, isPublished: 'true' } as any);
-    const response = await api.get(`/properties?${query.toString()}`);
-    
+
+    // withRetry: up to 3 attempts, 2 s apart, only for 5xx / network errors
+    const response = await withRetry(() => api.get(`/properties?${query.toString()}`));
+
     // Handle { success: true, data: { data: [], pagination: {} } } wrapper from backend
     const payload = (response as any).success ? (response as any).data : response;
-    
+
     return {
       data: payload.data || [],
       meta: payload.pagination || payload.meta || { total: 0, page: 1, limit: 10, totalPages: 1 }
