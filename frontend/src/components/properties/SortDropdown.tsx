@@ -36,7 +36,7 @@ export function SortDropdown({ currentSortBy, currentSortOrder, onSortChange }: 
         id="sort"
         value={currentValue}
         onChange={handleChange}
-        className="block w-full rounded-md border border-[#333333] py-1.5 pl-3 pr-8 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+        className="block w-full rounded-md border border-[#333333] bg-[#121212] text-white py-1.5 pl-3 pr-8 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
         aria-label="İlanları sırala"
       >
         {sortOptions.map((opt) => (

@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { propertyService } from '@/services/property.service';
 import { PropertiesResponse } from '@/types/property';
 import { PropertyCard } from '@/components/properties/PropertyCard';
-import { PropertyFilters } from '@/components/properties/PropertyFilters';
 import { SkeletonCard } from '@/components/properties/SkeletonCard';
 import { SearchBar } from '@/components/properties/SearchBar';
 import { SortDropdown } from '@/components/properties/SortDropdown';
@@ -45,9 +44,6 @@ export default function PropertiesClient({
     router.push(`/properties?${params.toString()}`);
   };
 
-  const handleFilterChange = (newFilters: any) => {
-    updateFiltersAndUrl({ ...filters, ...newFilters, page: 1 });
-  };
 
   const handlePageChange = (newPage: number) => {
     updateFiltersAndUrl({ ...filters, page: newPage });
@@ -164,22 +160,14 @@ export default function PropertiesClient({
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-8">
-      {/* Sidebar Filters */}
-      <div className="w-full md:w-1/4 flex-shrink-0">
-        <PropertyFilters currentFilters={filters} onFilterChange={handleFilterChange} />
+    <div>
+      {/* Top Bar: Search and Sort */}
+      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <SearchBar initialSearch={searchTerm} onSearchChange={handleSearchChange} />
+        <SortDropdown currentSortBy={sortBy} currentSortOrder={sortOrder} onSortChange={handleSortChange} />
       </div>
 
-      {/* Property List */}
-      <div className="flex-1">
-        {/* Top Bar: Search and Sort */}
-        <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <SearchBar initialSearch={searchTerm} onSearchChange={handleSearchChange} />
-          <SortDropdown currentSortBy={sortBy} currentSortOrder={sortOrder} onSortChange={handleSortChange} />
-        </div>
-
-        {renderContent()}
-      </div>
+      {renderContent()}
     </div>
   );
 }
