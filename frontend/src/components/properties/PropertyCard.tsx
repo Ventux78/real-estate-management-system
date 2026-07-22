@@ -14,11 +14,12 @@ export function PropertyCard({ property }: PropertyCardProps) {
   const coverImage = property.images?.find((img) => img.isCover)?.imageUrl || property.images?.[0]?.imageUrl || '/placeholder.jpg';
   
   const typeMap: Record<string, string> = {
-    HOUSE: 'Ev',
     APARTMENT: 'Daire',
+    HOUSE: 'Ev',
     OFFICE: 'Ofis',
+    SHOP: 'Dükkan',
+    WAREHOUSE: 'Depo',
     LAND: 'Arsa',
-    COMMERCIAL: 'Ticari',
     OTHER: 'Diğer',
   };
 
@@ -62,14 +63,13 @@ export function PropertyCard({ property }: PropertyCardProps) {
             <div className="flex items-center" title="Oda + Salon">
               <Bed className="mr-1.5 h-4 w-4 text-[#A1A1AA]" />
               <span>
-                {/* Fallbacks if these fields are missing on backend types */}
-                {(property as any).roomCount ?? 0} + {(property as any).livingRoomCount ?? 0}
+                {property.roomCount ?? 0} + {property.livingRoomCount ?? 0}
               </span>
             </div>
           )}
           <div className="flex items-center" title="Brüt Alan">
             <Maximize className="mr-1.5 h-4 w-4 text-[#A1A1AA]" />
-            <span>{(property as any).grossArea ?? 0} m²</span>
+            <span>{property.grossArea ?? 0} m²</span>
           </div>
         </div>
         <div className="font-medium text-[#A1A1AA]">

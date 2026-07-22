@@ -67,8 +67,8 @@ export const propertyRepository = {
     // Build the where clause — soft-delete always filtered
     const where: Prisma.PropertyWhereInput = {
       deletedAt: null,
-      ...(city !== undefined && { city }),
-      ...(district !== undefined && { district }),
+      ...(city !== undefined && { city: { equals: city.trim(), mode: 'insensitive' as const } }),
+      ...(district !== undefined && { district: { equals: district.trim(), mode: 'insensitive' as const } }),
       ...(listingType !== undefined && { listingType }),
       ...(propertyType !== undefined && { propertyType }),
       ...(isPublished !== undefined && { isPublished }),

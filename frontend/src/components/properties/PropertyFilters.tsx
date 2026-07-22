@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
+import type { PropertyFilters as PropertyFiltersType } from '@/types/property';
 
 const filterSchema = z.object({
   city: z.string().optional(),
@@ -14,15 +15,24 @@ const filterSchema = z.object({
   maximumPrice: z.string().optional(),
 });
 
-type FilterValues = z.infer<typeof filterSchema>;
+type FilterFormValues = z.infer<typeof filterSchema>;
 
 interface PropertyFiltersProps {
-  currentFilters: any;
-  onFilterChange: (filters: any) => void;
+  currentFilters: PropertyFiltersType;
+  onFilterChange: (filters: Partial<PropertyFiltersType>) => void;
 }
 
+const EMPTY_FORM: FilterFormValues = {
+  city: '',
+  district: '',
+  listingType: '',
+  propertyType: '',
+  minimumPrice: '',
+  maximumPrice: '',
+};
+
 export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFiltersProps) {
-  const { register, handleSubmit, reset } = useForm<FilterValues>({
+  const { register, handleSubmit, reset } = useForm<FilterFormValues>({
     resolver: zodResolver(filterSchema),
     defaultValues: {
       city: currentFilters.city || '',
@@ -34,28 +44,28 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
     },
   });
 
-  const onSubmit = (data: FilterValues) => {
-    // Clean empty values
-    const cleaned: Record<string, any> = {};
-    Object.entries(data).forEach(([key, value]) => {
-      if (value !== '' && value !== undefined && value !== null) {
-        cleaned[key] = value;
-      }
-    });
-    onFilterChange(cleaned);
+  const onSubmit = (data: FilterFormValues) => {
+    const filters: Partial<PropertyFiltersType> = {};
+
+    if (data.city?.trim()) filters.city = data.city.trim();
+    if (data.district?.trim()) filters.district = data.district.trim();
+    if (data.listingType) filters.listingType = data.listingType as PropertyFiltersType['listingType'];
+    if (data.propertyType) filters.propertyType = data.propertyType as PropertyFiltersType['propertyType'];
+    if (data.minimumPrice) {
+      const parsed = Number(data.minimumPrice);
+      if (!isNaN(parsed) && parsed > 0) filters.minimumPrice = parsed;
+    }
+    if (data.maximumPrice) {
+      const parsed = Number(data.maximumPrice);
+      if (!isNaN(parsed) && parsed > 0) filters.maximumPrice = parsed;
+    }
+
+    onFilterChange(filters);
   };
 
   const clearFilters = () => {
-    const emptyState = {
-      city: '',
-      district: '',
-      listingType: '',
-      propertyType: '',
-      minimumPrice: '',
-      maximumPrice: '',
-    };
-    reset(emptyState);
-    onFilterChange(emptyState);
+    reset(EMPTY_FORM);
+    onFilterChange({});
   };
 
   return (
@@ -78,11 +88,13 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
           <label className="mb-1 block text-sm font-medium text-[#A1A1AA]">Emlak Tipi</label>
           <select {...register('propertyType')} className="w-full rounded-md border border-[#333333] bg-[#121212] text-white p-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
             <option value="">Tümü</option>
-            <option value="HOUSE">Ev / Müstakil</option>
             <option value="APARTMENT">Daire</option>
+            <option value="HOUSE">Ev / Müstakil</option>
             <option value="OFFICE">Ofis</option>
-            <option value="COMMERCIAL">Ticari</option>
+            <option value="SHOP">Dükkan</option>
+            <option value="WAREHOUSE">Depo</option>
             <option value="LAND">Arsa</option>
+            <option value="OTHER">Diğer</option>
           </select>
         </div>
 
@@ -122,4 +134,3 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
     </div>
   );
 }
-

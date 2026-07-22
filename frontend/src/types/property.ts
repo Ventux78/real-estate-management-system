@@ -5,18 +5,44 @@ export interface PropertyImage {
   displayOrder: number;
 }
 
+export type ListingType = 'FOR_SALE' | 'FOR_RENT';
+
+export type PropertyType =
+  | 'APARTMENT'
+  | 'HOUSE'
+  | 'LAND'
+  | 'OFFICE'
+  | 'SHOP'
+  | 'WAREHOUSE'
+  | 'OTHER';
+
 export interface Property {
   id: string;
   slug: string;
   title: string;
-  description: string;
-  listingType: 'FOR_SALE' | 'FOR_RENT';
-  propertyType: 'HOUSE' | 'APARTMENT' | 'OFFICE' | 'LAND' | 'COMMERCIAL';
+  description: string | null;
+  listingType: ListingType;
+  propertyType: PropertyType;
   price: number;
   city: string;
   district: string;
   address: string;
-  features: string[];
+  neighborhood: string | null;
+  grossArea: number | null;
+  netArea: number | null;
+  roomCount: number | null;
+  livingRoomCount: number | null;
+  bathroomCount: number | null;
+  floor: number | null;
+  totalFloor: number | null;
+  buildingAge: number | null;
+  heatingType: string | null;
+  dues: number | null;
+  deedStatus: string | null;
+  furnished: boolean;
+  balcony: boolean;
+  elevator: boolean;
+  parking: boolean;
   images: PropertyImage[];
   isPublished: boolean;
   createdAt: string;
@@ -38,9 +64,11 @@ export interface PropertyFilters {
   limit?: number;
   city?: string;
   district?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  listingType?: string;
-  propertyType?: string;
-  isPublished?: boolean;
+  minimumPrice?: number;
+  maximumPrice?: number;
+  listingType?: ListingType;
+  propertyType?: PropertyType;
+  sortBy?: 'price' | 'createdAt' | 'updatedAt' | 'title';
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
 }

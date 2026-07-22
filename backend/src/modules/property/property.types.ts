@@ -40,12 +40,12 @@ export interface PropertyDto {
   floor: number | null;
   totalFloor: number | null;
   buildingAge: number | null;
-  /** HeatingType enum → string for flexibility */
-  heatingType: string | null;
+  /** HeatingType enum */
+  heatingType: 'NATURAL_GAS' | 'ELECTRIC' | 'FLOOR_HEATING' | 'COAL' | 'NONE' | 'OTHER' | null;
   /** Prisma Decimal → number */
   dues: number | null;
-  /** DeedStatus enum → string for flexibility */
-  deedStatus: string | null;
+  /** DeedStatus enum */
+  deedStatus: 'FREEHOLD' | 'CONDOMINIUM' | 'FLOOR_EASEMENT' | 'SHARED' | 'OTHER' | null;
   latitude: number | null;
   longitude: number | null;
   videoUrl: string | null;

@@ -48,11 +48,12 @@ export default async function PropertyDetailPage({
   }
 
   const typeMap: Record<string, string> = {
-    HOUSE: 'Ev / Müstakil',
     APARTMENT: 'Daire',
+    HOUSE: 'Ev / Müstakil',
     OFFICE: 'Ofis',
+    SHOP: 'Dükkan',
+    WAREHOUSE: 'Depo',
     LAND: 'Arsa',
-    COMMERCIAL: 'Ticari',
     OTHER: 'Diğer',
   };
 
@@ -110,19 +111,27 @@ export default async function PropertyDetailPage({
                 </div>
               </section>
 
-              {property.features && property.features.length > 0 && (
-                <section>
-                  <h2 className="text-2xl font-bold text-white mb-4">Özellikler</h2>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {property.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-slate-100">
-                        <span className="w-2 h-2 rounded-full bg-brand-400 mr-3" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+
+              {(() => {
+                const features: string[] = [];
+                if (property.furnished) features.push('Eşyalı');
+                if (property.balcony) features.push('Balkon');
+                if (property.elevator) features.push('Asansör');
+                if (property.parking) features.push('Otopark');
+                return features.length > 0 ? (
+                  <section>
+                    <h2 className="text-2xl font-bold text-white mb-4">Özellikler</h2>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {features.map((feature: string, idx: number) => (
+                        <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-slate-100">
+                          <span className="w-2 h-2 rounded-full bg-brand-400 mr-3" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null;
+              })()}
             </div>
 
             {/* Right: Summary Card & Action */}
@@ -138,7 +147,7 @@ export default async function PropertyDetailPage({
                         <span>Oda + Salon</span>
                       </div>
                       <span className="font-medium text-white">
-                        {(property as any).roomCount ?? 0} + {(property as any).livingRoomCount ?? 0}
+                        {property.roomCount ?? 0} + {property.livingRoomCount ?? 0}
                       </span>
                     </div>
                   )}
@@ -149,7 +158,7 @@ export default async function PropertyDetailPage({
                       <span>Brüt / Net Alan</span>
                     </div>
                     <span className="font-medium text-white">
-                      {(property as any).grossArea ?? '-'} / {(property as any).netArea ?? '-'} m²
+                      {property.grossArea ?? '-'} / {property.netArea ?? '-'} m²
                     </span>
                   </div>
 
