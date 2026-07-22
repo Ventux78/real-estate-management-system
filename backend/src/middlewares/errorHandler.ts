@@ -35,7 +35,7 @@ function isBodyParserSyntaxError(
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -43,6 +43,13 @@ export function errorHandler(
   // express.json() middleware'i geçersiz JSON alırsa bu hatayı fırlatır.
   // 400 Bad Request ile yanıt ver.
   if (isBodyParserSyntaxError(err)) {
+    console.error('[INVALID_JSON] request]', {
+      method: req.method,
+      url: req.originalUrl,
+      contentType: req.headers['content-type'],
+      bodyKeys: Object.keys(req.body || {}),
+    });
+
     res.status(400).json({
       success: false,
       error: {
