@@ -7,6 +7,8 @@
 import fs from 'fs';
 import path from 'path';
 
+const DEBUG = process.env.NODE_ENV !== 'production';
+
 type LocationData = Record<string, Record<string, string[]>>;
 
 function normalizeString(str: string): string {
@@ -37,17 +39,40 @@ class LocationService {
   }
 
   private loadData(): void {
-    try {
-      const dataPath = path.join(__dirname, '../../data/turkey_locations.json');
-      if (fs.existsSync(dataPath)) {
-        const raw = fs.readFileSync(dataPath, 'utf-8');
-        this.locations = JSON.parse(raw);
-      } else {
-        console.warn('[LocationService] turkey_locations.json file not found at', dataPath);
+    const candidatePaths = this.getCandidateDataPaths();
+
+    for (const dataPath of candidatePaths) {
+      try {
+        if (fs.existsSync(dataPath)) {
+          const raw = fs.readFileSync(dataPath, 'utf-8');
+          this.locations = JSON.parse(raw);
+          if (DEBUG) {
+            console.debug(`[LocationService] Loaded location data from ${dataPath}`);
+          }
+          return;
+        }
+      } catch (error) {
+        console.error(`[LocationService] Error loading location data from ${dataPath}:`, error);
       }
-    } catch (error) {
-      console.error('[LocationService] Error loading location data:', error);
     }
+
+    console.warn('[LocationService] No usable location dataset found. Tried paths:', candidatePaths);
+  }
+
+  private getCandidateDataPaths(): string[] {
+    const cwd = process.cwd();
+    const dirname = __dirname;
+    const candidates = [
+      path.resolve(cwd, 'src/data/turkey_locations.json'),
+      path.resolve(cwd, 'backend/src/data/turkey_locations.json'),
+      path.resolve(cwd, 'admin/app/data/turkey_locations.json'),
+      path.resolve(dirname, '../../data/turkey_locations.json'),
+      path.resolve(dirname, '../../../src/data/turkey_locations.json'),
+      path.resolve(dirname, '../../src/data/turkey_locations.json'),
+      path.resolve(dirname, '../../../admin/app/data/turkey_locations.json'),
+    ];
+
+    return [...new Set(candidates)];
   }
 
   public getProvinces(): string[] {
@@ -82,16 +107,55 @@ class LocationService {
    * Validates if province -> district -> neighborhood combination is valid.
    */
   public isValidLocation(province?: string | null, district?: string | null, neighborhood?: string | null): boolean {
-    if (!province || !district || !neighborhood) {
-      return false;
+    const incomingProvince = province?.trim() ?? '';
+    const incomingDistrict = district?.trim() ?? '';
+    const incomingNeighborhood = neighborhood?.trim() ?? '';
+
+    if (DEBUG) {
+      console.debug('[LocationValidation] Incoming values');
+      console.debug(`  Province      : ${incomingProvince}`);
+      console.debug(`  District      : ${incomingDistrict}`);
+      console.debug(`  Neighborhood  : ${incomingNeighborhood}`);
     }
 
-    const neighborhoods = this.getNeighborhoods(province.trim(), district.trim());
+    if (!incomingProvince) {
+      if (DEBUG) console.debug('[LocationValidation] Province bulundu mu? ✖');
+      return false;
+    }
+    if (DEBUG) console.debug('[LocationValidation] Province bulundu mu? ✔');
+
+    if (!incomingDistrict) {
+      if (DEBUG) console.debug('[LocationValidation] District bulundu mu? ✖');
+      return false;
+    }
+    if (DEBUG) console.debug('[LocationValidation] District bulundu mu? ✔');
+
+    if (!incomingNeighborhood) {
+      if (DEBUG) console.debug('[LocationValidation] Neighborhood bulundu mu? ✖');
+      return false;
+    }
+    if (DEBUG) console.debug('[LocationValidation] Neighborhood bulundu mu? ✔');
+
+    const neighborhoods = this.getNeighborhoods(incomingProvince, incomingDistrict);
+    if (DEBUG) {
+      console.debug('[LocationValidation] Province/District lookup result');
+      console.debug(`  Matched district count: ${neighborhoods.length}`);
+      console.debug(`  Neighborhood list sample: ${neighborhoods.slice(0, 10).join(' | ')}`);
+    }
+
     if (neighborhoods.length === 0) {
+      if (DEBUG) console.debug('[LocationValidation] Neighborhood list empty, validation failed.');
       return false;
     }
 
-    const match = this.findMatchingKey(neighborhoods, neighborhood.trim());
+    const match = this.findMatchingKey(neighborhoods, incomingNeighborhood);
+    if (DEBUG) {
+      console.debug('[LocationValidation] Match comparison');
+      console.debug(`  Expected (normalized): ${normalizeString(incomingNeighborhood)}`);
+      console.debug(`  Candidate matches: ${neighborhoods.slice(0, 10).map((item) => `${item} -> ${normalizeString(item)}`).join(' | ')}`);
+      console.debug(`  Result: ${match ?? 'no-match'}`);
+    }
+
     return match !== null;
   }
 
@@ -100,6 +164,9 @@ class LocationService {
     for (const key of keys) {
       const cleanKey = normalizeString(key);
       const cleanKeyBase = cleanKey.replace(/\s*\([^)]*\)/g, '').trim();
+      if (DEBUG) {
+        console.debug(`[LocationValidation] Comparing -> expected: ${cleanTarget} | candidate: ${cleanKey} | normalizedBase: ${cleanKeyBase}`);
+      }
       if (cleanKey === cleanTarget || cleanKeyBase === cleanTarget) {
         return key;
       }

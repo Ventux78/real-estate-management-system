@@ -36,6 +36,7 @@ RUN npm ci --only=production
 
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/data ./src/data
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 # Expose API port
