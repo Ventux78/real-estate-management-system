@@ -156,7 +156,9 @@ export default function PropertiesClient({
     queryKey: ['properties', filters],
     queryFn: () => propertyService.getProperties(filters),
     initialData: isInitialFilters ? initialData : undefined,
-    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    retry: false, // propertyService already retries up to 3 times via withRetry
   });
 
   // ── Client-side Search Filter ─────────────────────────────────────────────
