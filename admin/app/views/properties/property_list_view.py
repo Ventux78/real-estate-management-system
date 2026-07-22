@@ -218,6 +218,8 @@ class PropertyListView(QWidget):
         """)
 
         layout.addWidget(self._table)
+        self._table.itemDoubleClicked.connect(self._on_table_double_clicked)
+
 
         # ── Sayfalama ───────────────────────────────────────────────────────
         pagination_layout = QHBoxLayout()
@@ -358,6 +360,13 @@ class PropertyListView(QWidget):
         edit_btn.clicked.connect(lambda checked, p=prop: self._on_edit_property(p))
         layout.addWidget(edit_btn)
 
+        # Önizle/Detay butonu
+        detail_btn = StyledButton("👁", variant="secondary", small=True)
+        detail_btn.setFixedWidth(36)
+        detail_btn.setToolTip("Detayları Gör")
+        detail_btn.clicked.connect(lambda checked, p=prop: self._on_view_property_detail(p))
+        layout.addWidget(detail_btn)
+
         # Yayın durumu butonu
         if prop.is_published:
             toggle_btn = StyledButton("Yayından Al", variant="warning", small=True)
@@ -378,6 +387,18 @@ class PropertyListView(QWidget):
         return widget
 
     # ─── Aksiyon Metodları ───────────────────────────────────────────────────
+
+    def _on_table_double_clicked(self, item) -> None:
+        """Tabloda bir satıra çift tıklandığında önizleme dialog'unu açar."""
+        row = item.row()
+        if 0 <= row < len(self._properties):
+            self._on_view_property_detail(self._properties[row])
+
+    def _on_view_property_detail(self, prop: Property) -> None:
+        """İlan detay önizleme dialog'unu açar."""
+        from app.dialogs.property_detail_dialog import PropertyDetailDialog
+        dialog = PropertyDetailDialog(prop, self)
+        dialog.exec()
 
     def _publish(self, prop: Property) -> None:
         """Property'yi yayına alır."""
@@ -426,6 +447,7 @@ class PropertyListView(QWidget):
         dialog = PropertyCreateDialog(parent=self)
         dialog.property_created.connect(self.load_data)
         dialog.exec()
+
 
     # ─── Sayfalama ───────────────────────────────────────────────────────────
 

@@ -2,20 +2,16 @@
 app/dialogs/property_edit_dialog.py
 ====================================
 Amaç:
-    İlan düzenleme formu ve resim yönetimi.
-
-Neden bu şekilde tasarlandı:
-    - Sekmeli yapı (QTabWidget) ile formu ve resimleri ayırdık.
-    - Worker thread'ler kullanılarak resim yükleme UI'ı bloklamadan yapılır.
-    - Resimlerin asenkron indirilmesi için QNetworkAccessManager kullanılır.
+    İlan düzenleme formu, konut detayları, özellikleri, konum bilgileri ve resim yönetimi.
 """
 
 import os
 import webbrowser
+from typing import Any
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QScrollArea,
     QTabWidget, QFileDialog, QListWidget, QListWidgetItem, QProgressBar, QMessageBox, QFrame,
-    QGridLayout, QSizePolicy, QRadioButton, QButtonGroup
+    QGridLayout, QSizePolicy, QRadioButton, QButtonGroup, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal, QThread, QObject, QSize, QUrl
 from PySide6.QtGui import QPixmap
@@ -30,6 +26,25 @@ from app.config.constants import Colors, FontSizes, ListingType, PropertyType
 from app.widgets.styled_button import StyledButton
 from app.widgets.styled_input import StyledLineEdit, StyledComboBox, SearchableComboBox, StyledTextEdit
 from app.utils.validators import validate_create_property_form
+
+
+def safe_float(val_str: str) -> float | None:
+    if not val_str or not val_str.strip():
+        return None
+    try:
+        return float(val_str.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def safe_int(val_str: str) -> int | None:
+    if not val_str or not val_str.strip():
+        return None
+    try:
+        return int(val_str)
+    except ValueError:
+        return None
+
 
 # ─── Image Upload Worker ───────────────────────────────────────────────────────
 
@@ -51,6 +66,7 @@ class ImageUploadWorker(QObject):
             if hasattr(e, 'message'):
                 msg = e.message
             self.error.emit(msg)
+
 
 # ─── Image List Item Widget ────────────────────────────────────────────────────
 
@@ -160,8 +176,8 @@ class PropertyEditDialog(QDialog):
         
         self.setWindowTitle(f"İlanı Düzenle: {self.property.title}")
         self.setModal(True)
-        self.setMinimumWidth(800)
-        self.setMinimumHeight(650)
+        self.setMinimumWidth(760)
+        self.setMinimumHeight(600)
         self.setStyleSheet(f"""
             QDialog {{ background-color: {Colors.BACKGROUND}; }}
             QLabel {{ color: {Colors.TEXT_PRIMARY}; }}
@@ -175,92 +191,236 @@ class PropertyEditDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: 1px solid {Colors.BORDER}; border-radius: 4px; }}
-            QTabBar::tab {{ background: {Colors.SURFACE}; padding: 8px 16px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
-            QTabBar::tab:selected {{ background: {Colors.PRIMARY}; color: white; }}
+            QTabWidget::pane {{
+                border: 1px solid {Colors.BORDER};
+                background-color: {Colors.SURFACE};
+                border-radius: 6px;
+            }}
+            QTabBar::tab {{
+                background: {Colors.SURFACE_2};
+                color: {Colors.TEXT_SECONDARY};
+                padding: 8px 16px;
+                margin-right: 4px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                font-weight: bold;
+            }}
+            QTabBar::tab:selected {{
+                background: {Colors.PRIMARY};
+                color: white;
+            }}
         """)
         
-        self._setup_info_tab()
+        self._setup_basic_info_tab()
+        self._setup_details_tab()
+        self._setup_features_tab()
+        self._setup_location_media_tab()
         self._setup_images_tab()
         
         layout.addWidget(self.tabs)
+
+        # Hata mesajı alanı
+        self._info_error_label = QLabel("")
+        self._info_error_label.setWordWrap(True)
+        self._info_error_label.setStyleSheet(f"color: {Colors.DANGER}; font-size: {FontSizes.SMALL}pt; padding: 4px 10px;")
+        self._info_error_label.hide()
+        layout.addWidget(self._info_error_label)
         
         # Footer
         footer = QHBoxLayout()
         footer.addStretch()
-        close_btn = StyledButton("Kapat", variant="secondary")
-        close_btn.clicked.connect(self.accept)
-        footer.addWidget(close_btn)
+        
+        cancel_btn = StyledButton("Kapat", variant="secondary")
+        cancel_btn.clicked.connect(self.reject)
+        footer.addWidget(cancel_btn)
+
+        self._save_info_btn = StyledButton("💾  Değişiklikleri Kaydet", variant="primary")
+        self._save_info_btn.clicked.connect(self._on_save_info)
+        footer.addWidget(self._save_info_btn)
+        
         layout.addLayout(footer)
 
-    def _setup_info_tab(self) -> None:
+        # Verileri doldur
+        self._load_property_data()
+
+    def _setup_basic_info_tab(self) -> None:
+        """1. Temel Bilgiler Sekmesi"""
         tab = QWidget()
-        tab_layout = QVBoxLayout(tab)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("background-color: transparent;")
+        self._title_input = StyledLineEdit(placeholder="İlan başlığı")
+        self._add_form_row(layout, "Başlık *", self._title_input)
 
-        form_container = QWidget()
-        form_container.setStyleSheet(f"background-color: {Colors.SURFACE};")
-        form_layout = QVBoxLayout(form_container)
-        form_layout.setSpacing(16)
-        form_layout.setContentsMargins(20, 20, 20, 16)
-
-        # ── Temel Bilgiler ─────────────────────────────────────────────────
-        self._add_section_title(form_layout, "Temel Bilgiler")
-
-        self._title_input = StyledLineEdit(placeholder="İlan başlığını girin")
-        self._title_input.setText(self.property.title)
-        self._add_form_row(form_layout, "Başlık *", self._title_input)
-
-        self._price_input = StyledLineEdit(placeholder="Örn: 2500000")
-        self._price_input.setText(str(self.property.price))
-        self._add_form_row(form_layout, "Fiyat (₺) *", self._price_input)
+        self._price_input = StyledLineEdit(placeholder="Fiyat")
+        self._add_form_row(layout, "Fiyat (₺) *", self._price_input)
 
         self._listing_type_combo = StyledComboBox()
         for lt in ListingType:
             self._listing_type_combo.addItem(lt.display(), lt.value)
-        idx_lt = self._listing_type_combo.findData(self.property.listing_type)
-        if idx_lt != -1:
-            self._listing_type_combo.setCurrentIndex(idx_lt)
-        self._add_form_row(form_layout, "İlan Tipi *", self._listing_type_combo)
+        self._add_form_row(layout, "İlan Tipi *", self._listing_type_combo)
 
         self._property_type_combo = StyledComboBox()
         for pt in PropertyType:
             self._property_type_combo.addItem(pt.display(), pt.value)
-        idx_pt = self._property_type_combo.findData(self.property.property_type)
-        if idx_pt != -1:
-            self._property_type_combo.setCurrentIndex(idx_pt)
-        self._add_form_row(form_layout, "Mülk Tipi *", self._property_type_combo)
+        self._add_form_row(layout, "Mülk Tipi *", self._property_type_combo)
 
-        # ── Konum ──────────────────────────────────────────────────────────
-        self._add_section_title(form_layout, "Konum")
+        self._description_input = StyledTextEdit(placeholder="İlan açıklaması")
+        self._description_input.setFixedHeight(120)
+        self._add_form_row(layout, "Açıklama", self._description_input)
+
+        layout.addStretch()
+        self.tabs.addTab(tab, "📄 Temel Bilgiler")
+
+    def _setup_details_tab(self) -> None:
+        """2. Konut Detayları Sekmesi"""
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        self._add_section_title(layout, "ALAN BİLGİLERİ")
+        self._gross_area_input = StyledLineEdit(placeholder="m²")
+        self._add_form_row(layout, "Brüt Alan (m²)", self._gross_area_input)
+
+        self._net_area_input = StyledLineEdit(placeholder="m²")
+        self._add_form_row(layout, "Net Alan (m²)", self._net_area_input)
+
+        self._add_section_title(layout, "ODA & KAT BİLGİLERİ")
+        grid = QGridLayout()
+        grid.setSpacing(14)
+
+        self._room_count_input = StyledLineEdit(placeholder="Örn: 3")
+        self._add_grid_form_row(grid, 0, 0, "Oda Sayısı", self._room_count_input)
+
+        self._living_room_count_input = StyledLineEdit(placeholder="Örn: 1")
+        self._add_grid_form_row(grid, 0, 1, "Salon Sayısı", self._living_room_count_input)
+
+        self._bathroom_count_input = StyledLineEdit(placeholder="Örn: 1")
+        self._add_grid_form_row(grid, 1, 0, "Banyo Sayısı", self._bathroom_count_input)
+
+        self._floor_input = StyledLineEdit(placeholder="Örn: 4")
+        self._add_grid_form_row(grid, 1, 1, "Bulunduğu Kat", self._floor_input)
+
+        self._total_floor_input = StyledLineEdit(placeholder="Örn: 8")
+        self._add_grid_form_row(grid, 2, 0, "Toplam Kat", self._total_floor_input)
+
+        self._building_age_input = StyledLineEdit(placeholder="Örn: 5")
+        self._add_grid_form_row(grid, 2, 1, "Bina Yaşı", self._building_age_input)
+
+        layout.addLayout(grid)
+
+        self._add_section_title(layout, "DİĞER BİLGİLER")
+        self._heating_type_combo = StyledComboBox()
+        self._heating_type_combo.addItem("-- Seçiniz --", "")
+        self._heating_type_combo.addItem("Doğalgaz", "NATURAL_GAS")
+        self._heating_type_combo.addItem("Elektrik", "ELECTRIC")
+        self._heating_type_combo.addItem("Yerden Isıtma", "FLOOR_HEATING")
+        self._heating_type_combo.addItem("Kömür / Soba", "COAL")
+        self._heating_type_combo.addItem("Yok", "NONE")
+        self._heating_type_combo.addItem("Diğer", "OTHER")
+        self._add_form_row(layout, "Isıtma Tipi", self._heating_type_combo)
+
+        self._dues_input = StyledLineEdit(placeholder="Aylık aidat (₺)")
+        self._add_form_row(layout, "Aidat (₺/ay)", self._dues_input)
+
+        self._deed_status_combo = StyledComboBox()
+        self._deed_status_combo.addItem("-- Seçiniz --", "")
+        self._deed_status_combo.addItem("Kat İrtifakı", "FREEHOLD")
+        self._deed_status_combo.addItem("Kat Mülkiyeti", "CONDOMINIUM")
+        self._deed_status_combo.addItem("Kat İrtifakı (Floor Easement)", "FLOOR_EASEMENT")
+        self._deed_status_combo.addItem("Hisseli Tapu", "SHARED")
+        self._deed_status_combo.addItem("Diğer", "OTHER")
+        self._add_form_row(layout, "Tapu Durumu", self._deed_status_combo)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.addWidget(scroll)
+        self.tabs.addTab(tab, "🏢 Konut Detayları")
+
+    def _setup_features_tab(self) -> None:
+        """3. Özellikler Sekmesi"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
+
+        self._add_section_title(layout, "İLAN ÖZELLİKLERİ")
+
+        grid = QGridLayout()
+        grid.setSpacing(20)
+
+        self._furnished_check = QCheckBox("Eşyalı")
+        self._balcony_check = QCheckBox("Balkon")
+        self._elevator_check = QCheckBox("Asansör")
+        self._parking_check = QCheckBox("Otopark / Garaj")
+        self._eligible_for_credit_check = QCheckBox("Krediye Uygun")
+        self._exchange_available_check = QCheckBox("Takas Yapılabilir")
+        self._is_featured_check = QCheckBox("⭐ Öne Çıkan İlan")
+
+        checkbox_style = f"color: {Colors.TEXT_PRIMARY}; font-size: {FontSizes.NORMAL}pt;"
+        self._furnished_check.setStyleSheet(checkbox_style)
+        self._balcony_check.setStyleSheet(checkbox_style)
+        self._elevator_check.setStyleSheet(checkbox_style)
+        self._parking_check.setStyleSheet(checkbox_style)
+        self._eligible_for_credit_check.setStyleSheet(checkbox_style)
+        self._exchange_available_check.setStyleSheet(checkbox_style)
+        self._is_featured_check.setStyleSheet(checkbox_style)
+
+        grid.addWidget(self._furnished_check, 0, 0)
+        grid.addWidget(self._elevator_check, 1, 0)
+        grid.addWidget(self._eligible_for_credit_check, 2, 0)
+        grid.addWidget(self._is_featured_check, 3, 0)
+
+        grid.addWidget(self._balcony_check, 0, 1)
+        grid.addWidget(self._parking_check, 1, 1)
+        grid.addWidget(self._exchange_available_check, 2, 1)
+
+        layout.addLayout(grid)
+        layout.addStretch()
+        self.tabs.addTab(tab, "✔ Özellikler")
+
+    def _setup_location_media_tab(self) -> None:
+        """4. Konum & Harita Sekmesi"""
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        self._add_section_title(layout, "Konum")
 
         self._province_combo = SearchableComboBox(placeholder="-- İl Seçin --")
         self._province_combo.addItem("-- İl Seçin --", "")
         for p in location_service.get_provinces():
             self._province_combo.addItem(p, p)
-        self._add_form_row(form_layout, "İl *", self._province_combo)
+        self._add_form_row(layout, "İl *", self._province_combo)
 
         self._district_combo = SearchableComboBox(placeholder="-- İlçe Seçin --")
         self._district_combo.setEnabled(False)
-        self._add_form_row(form_layout, "İlçe *", self._district_combo)
+        self._add_form_row(layout, "İlçe *", self._district_combo)
 
         self._neighborhood_combo = SearchableComboBox(placeholder="-- Mahalle Seçin --")
         self._neighborhood_combo.setEnabled(False)
         self._neighborhood_combo.currentIndexChanged.connect(self._on_location_field_changed)
-        self._add_form_row(form_layout, "Mahalle *", self._neighborhood_combo)
+        self._add_form_row(layout, "Mahalle *", self._neighborhood_combo)
 
         self._address_input = StyledLineEdit(placeholder="Sokak, Bina No, Daire No vb.")
-        self._address_input.setText(self.property.address)
         self._address_input.textChanged.connect(self._on_location_field_changed)
-        self._add_form_row(form_layout, "Adres Detayı *", self._address_input)
+        self._add_form_row(layout, "Adres Detayı *", self._address_input)
 
-        # ── Google Maps Konumu ──────────────────────────────────────────────
-        self._add_section_title(form_layout, "Google Maps Konumu")
+        self._add_section_title(layout, "Google Maps Konumu")
 
         radio_layout = QHBoxLayout()
         radio_layout.setSpacing(20)
@@ -280,7 +440,7 @@ class PropertyEditDialog(QDialog):
         radio_layout.addWidget(self._map_auto_radio)
         radio_layout.addWidget(self._map_manual_radio)
         radio_layout.addStretch()
-        form_layout.addLayout(radio_layout)
+        layout.addLayout(radio_layout)
 
         url_row = QWidget()
         url_layout = QHBoxLayout(url_row)
@@ -297,57 +457,124 @@ class PropertyEditDialog(QDialog):
         url_layout.addWidget(self._map_url_input, stretch=1)
         url_layout.addWidget(self._view_map_btn)
 
-        self._add_form_row(form_layout, "Google Maps URL", url_row)
+        self._add_form_row(layout, "Google Maps URL", url_row)
 
-        # ── Açıklama ───────────────────────────────────────────────────────
-        self._add_section_title(form_layout, "Açıklama")
+        layout.addStretch()
+        scroll.setWidget(container)
 
-        self._description_input = StyledTextEdit(placeholder="İlan açıklaması")
-        if self.property.description:
-            self._description_input.setPlainText(self.property.description)
-        self._description_input.setFixedHeight(90)
-        self._add_form_row(form_layout, "Açıklama", self._description_input)
-
-        # Hata mesajı
-        self._info_error_label = QLabel("")
-        self._info_error_label.setWordWrap(True)
-        self._info_error_label.setStyleSheet(f"color: {Colors.DANGER}; font-size: {FontSizes.SMALL}pt; padding: 4px 0;")
-        self._info_error_label.hide()
-        form_layout.addWidget(self._info_error_label)
-
-        # Kaydet butonu
-        save_btn_layout = QHBoxLayout()
-        save_btn_layout.addStretch()
-        self._save_info_btn = StyledButton("💾  Değişiklikleri Kaydet", variant="primary")
-        self._save_info_btn.clicked.connect(self._on_save_info)
-        save_btn_layout.addWidget(self._save_info_btn)
-        form_layout.addLayout(save_btn_layout)
-
-        form_layout.addStretch()
-        scroll.setWidget(form_container)
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
         tab_layout.addWidget(scroll)
 
-        # Mevcut konum seçimlerini ve Google Maps modunu hiyerarşik yükle
-        self._load_location_data()
-
-        # Sinyal bağlantıları
+        # Sinyal bağlantıları (Sırayla tetiklensin)
         self._province_combo.currentIndexChanged.connect(self._on_province_changed)
         self._district_combo.currentIndexChanged.connect(self._on_district_changed)
 
-        self.tabs.addTab(tab, "Temel Bilgiler")
+        self.tabs.addTab(tab, "📍 Konum")
 
-    def _load_location_data(self) -> None:
-        """İlanın mevcut İl → İlçe → Mahalle ve Google Maps URL seçimlerini doldurur."""
+    def _setup_images_tab(self) -> None:
+        """5. Fotoğraflar Sekmesi"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Header with Upload Button
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Fotoğraflar")
+        header_label.setStyleSheet(f"font-size: {FontSizes.LARGE}pt; font-weight: bold;")
+        header_layout.addWidget(header_label)
+        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.hide()
+        header_layout.addWidget(self.progress_bar)
+        
+        header_layout.addStretch()
+        
+        self.upload_btn = StyledButton("Resim Yükle", variant="primary")
+        self.upload_btn.clicked.connect(self._on_upload_clicked)
+        header_layout.addWidget(self.upload_btn)
+        
+        layout.addLayout(header_layout)
+
+        # List Widget
+        self.list_widget = QListWidget()
+        self.list_widget.setStyleSheet(f"background-color: {Colors.SURFACE}; border: none;")
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        layout.addWidget(self.list_widget)
+
+        self._render_images()
+        self.tabs.addTab(tab, "🖼 Fotoğraflar")
+
+    # ─── Verileri Form Üzerine Doldurma ────────────────────────────────────────
+
+    def _load_property_data(self) -> None:
+        """İlanın mevcut değerlerini form elemanlarına doldurur."""
+        # 1. Temel Bilgiler
+        self._title_input.setText(self.property.title)
+        self._price_input.setText(str(self.property.price))
+        
+        idx_lt = self._listing_type_combo.findData(self.property.listing_type)
+        if idx_lt != -1:
+            self._listing_type_combo.setCurrentIndex(idx_lt)
+            
+        idx_pt = self._property_type_combo.findData(self.property.property_type)
+        if idx_pt != -1:
+            self._property_type_combo.setCurrentIndex(idx_pt)
+
+        if self.property.description:
+            self._description_input.setPlainText(self.property.description)
+
+        # 2. Konut Detayları
+        if self.property.gross_area is not None:
+            self._gross_area_input.setText(str(self.property.gross_area))
+        if self.property.net_area is not None:
+            self._net_area_input.setText(str(self.property.net_area))
+        if self.property.room_count is not None:
+            self._room_count_input.setText(str(self.property.room_count))
+        if self.property.living_room_count is not None:
+            self._living_room_count_input.setText(str(self.property.living_room_count))
+        if self.property.bathroom_count is not None:
+            self._bathroom_count_input.setText(str(self.property.bathroom_count))
+        if self.property.floor is not None:
+            self._floor_input.setText(str(self.property.floor))
+        if self.property.total_floor is not None:
+            self._total_floor_input.setText(str(self.property.total_floor))
+        if self.property.building_age is not None:
+            self._building_age_input.setText(str(self.property.building_age))
+            
+        if self.property.heating_type:
+            idx_ht = self._heating_type_combo.findData(self.property.heating_type)
+            if idx_ht != -1:
+                self._heating_type_combo.setCurrentIndex(idx_ht)
+                
+        if self.property.dues is not None:
+            self._dues_input.setText(str(self.property.dues))
+            
+        if self.property.deed_status:
+            idx_ds = self._deed_status_combo.findData(self.property.deed_status)
+            if idx_ds != -1:
+                self._deed_status_combo.setCurrentIndex(idx_ds)
+
+        # 3. Özellikler
+        self._furnished_check.setChecked(self.property.furnished)
+        self._balcony_check.setChecked(self.property.balcony)
+        self._elevator_check.setChecked(self.property.elevator)
+        self._parking_check.setChecked(self.property.parking)
+        self._eligible_for_credit_check.setChecked(self.property.eligible_for_credit)
+        self._exchange_available_check.setChecked(self.property.exchange_available)
+        self._is_featured_check.setChecked(self.property.is_featured)
+
+        # 4. Konum & Harita Yükle
         current_province = self.property.province or self.property.city
         current_district = self.property.district
         current_neighborhood = self.property.neighborhood
 
-        # 1. İl Seçimi
+        # İl Seçimi
         idx_p = self._province_combo.findData(current_province)
         if idx_p != -1:
             self._province_combo.setCurrentIndex(idx_p)
 
-            # 2. İlçeleri Doldur & Seç
+            # İlçeleri Doldur & Seç
             self._district_combo.clear()
             self._district_combo.addItem("-- İlçe Seçin --", "")
             districts = location_service.get_districts(current_province)
@@ -359,7 +586,7 @@ class PropertyEditDialog(QDialog):
                 self._district_combo.setCurrentIndex(idx_d)
                 self._district_combo.setEnabled(True)
 
-                # 3. Mahalleleri Doldur & Seç
+                # Mahalleleri Doldur & Seç
                 self._neighborhood_combo.clear()
                 self._neighborhood_combo.addItem("-- Mahalle Seçin --", "")
                 neighborhoods = location_service.get_neighborhoods(current_province, current_district)
@@ -372,7 +599,9 @@ class PropertyEditDialog(QDialog):
                         self._neighborhood_combo.setCurrentIndex(idx_n)
                 self._neighborhood_combo.setEnabled(True)
 
-        # 4. Google Maps Modunu ve URL'yi Yükle
+        self._address_input.setText(self.property.address)
+
+        # Google Maps Modunu Yükle
         if self.property.is_map_url_manual:
             self._map_manual_radio.setChecked(True)
             self._map_url_input.setReadOnly(False)
@@ -385,6 +614,56 @@ class PropertyEditDialog(QDialog):
             else:
                 self._update_auto_map_url()
         self._update_map_button_state()
+
+    # ─── Yardımcı Tasarım Metodları ─────────────────────────────────────────────
+
+    def _add_section_title(self, layout: QVBoxLayout, title: str) -> None:
+        label = QLabel(title)
+        label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {FontSizes.SMALL}pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding-top: 8px;
+            border-bottom: 1px solid {Colors.BORDER};
+            padding-bottom: 8px;
+        """)
+        layout.addWidget(label)
+
+    def _add_form_row(self, layout: QVBoxLayout, label_text: str, widget: QWidget) -> None:
+        row = QWidget()
+        row_layout = QVBoxLayout(row)
+        row_layout.setSpacing(6)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel(label_text)
+        label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {FontSizes.SMALL}pt;
+            font-weight: 600;
+        """)
+        row_layout.addWidget(label)
+        row_layout.addWidget(widget)
+        layout.addWidget(row)
+
+    def _add_grid_form_row(self, grid: QGridLayout, row: int, col: int, label_text: str, widget: QWidget) -> None:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel(label_text)
+        label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {FontSizes.SMALL}pt;
+            font-weight: 600;
+        """)
+        layout.addWidget(label)
+        layout.addWidget(widget)
+        grid.addWidget(container, row, col)
+
+    # ─── Konum & Harita İşlemleri ──────────────────────────────────────────────
 
     def _on_province_changed(self) -> None:
         """İl değiştiğinde İlçe ve Mahalle seçimlerini sıfırlar."""
@@ -469,51 +748,46 @@ class PropertyEditDialog(QDialog):
                 url = "https://" + url
             webbrowser.open(url)
 
-    def _add_section_title(self, layout: QVBoxLayout, title: str) -> None:
-        label = QLabel(title)
-        label.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: {FontSizes.SMALL}pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding-top: 8px;
-            border-bottom: 1px solid {Colors.BORDER};
-            padding-bottom: 8px;
-        """)
-        layout.addWidget(label)
-
-    def _add_form_row(self, layout: QVBoxLayout, label_text: str, widget: QWidget) -> None:
-        row = QWidget()
-        row_layout = QVBoxLayout(row)
-        row_layout.setSpacing(6)
-        row_layout.setContentsMargins(0, 0, 0, 0)
-
-        label = QLabel(label_text)
-        label.setStyleSheet(f"""
-            color: {Colors.TEXT_SECONDARY};
-            font-size: {FontSizes.SMALL}pt;
-            font-weight: 600;
-        """)
-        row_layout.addWidget(label)
-        row_layout.addWidget(widget)
-        layout.addWidget(row)
+    # ─── Kaydetme İşlemi ───────────────────────────────────────────────────────
 
     def _on_save_info(self) -> None:
+        """Değişiklikleri kaydeder."""
         self._info_error_label.hide()
         self._save_info_btn.setEnabled(False)
 
+        # Form girdilerini topla
         title = self._title_input.text().strip()
         price_str = self._price_input.text().strip()
+        listing_type = self._listing_type_combo.currentData()
+        property_type = self._property_type_combo.currentData()
+        description = self._description_input.toPlainText().strip() or None
+
         province = self._province_combo.currentData() or ""
         district = self._district_combo.currentData() or ""
         neighborhood = self._neighborhood_combo.currentData() or ""
         address = self._address_input.text().strip()
-        description = self._description_input.toPlainText().strip() or None
-        listing_type = self._listing_type_combo.currentData()
-        property_type = self._property_type_combo.currentData()
         is_map_manual = self._map_manual_radio.isChecked()
         map_url = self._map_url_input.text().strip()
+
+        gross_area = safe_float(self._gross_area_input.text().strip())
+        net_area = safe_float(self._net_area_input.text().strip())
+        room_count = safe_int(self._room_count_input.text().strip())
+        living_room_count = safe_int(self._living_room_count_input.text().strip())
+        bathroom_count = safe_int(self._bathroom_count_input.text().strip())
+        floor = safe_int(self._floor_input.text().strip())
+        total_floor = safe_int(self._total_floor_input.text().strip())
+        building_age = safe_int(self._building_age_input.text().strip())
+        heating_type = self._heating_type_combo.currentData() or None
+        dues = safe_float(self._dues_input.text().strip())
+        deed_status = self._deed_status_combo.currentData() or None
+
+        furnished = self._furnished_check.isChecked()
+        balcony = self._balcony_check.isChecked()
+        elevator = self._elevator_check.isChecked()
+        parking = self._parking_check.isChecked()
+        eligible_for_credit = self._eligible_for_credit_check.isChecked()
+        exchange_available = self._exchange_available_check.isChecked()
+        is_featured = self._is_featured_check.isChecked()
 
         is_valid, errors = validate_create_property_form(
             title, price_str, province, district, neighborhood, address, map_url, is_map_manual
@@ -540,6 +814,24 @@ class PropertyEditDialog(QDialog):
                 "description": description,
                 "mapUrl": map_url,
                 "isMapUrlManual": is_map_manual,
+                "grossArea": gross_area,
+                "netArea": net_area,
+                "roomCount": room_count,
+                "livingRoomCount": living_room_count,
+                "bathroomCount": bathroom_count,
+                "floor": floor,
+                "totalFloor": total_floor,
+                "buildingAge": building_age,
+                "heatingType": heating_type,
+                "dues": dues,
+                "deedStatus": deed_status,
+                "furnished": furnished,
+                "balcony": balcony,
+                "elevator": elevator,
+                "parking": parking,
+                "eligibleForCredit": eligible_for_credit,
+                "exchangeAvailable": exchange_available,
+                "isFeatured": is_featured,
             }
             updated = property_service.update_property(self.property.id, fields)
             self.property = updated
@@ -554,38 +846,7 @@ class PropertyEditDialog(QDialog):
         finally:
             self._save_info_btn.setEnabled(True)
 
-
-    def _setup_images_tab(self) -> None:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-
-        # Header with Upload Button
-        header_layout = QHBoxLayout()
-        header_label = QLabel("Fotoğraflar")
-        header_label.setStyleSheet(f"font-size: {FontSizes.LARGE}pt; font-weight: bold;")
-        header_layout.addWidget(header_label)
-        
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.hide()
-        header_layout.addWidget(self.progress_bar)
-        
-        header_layout.addStretch()
-        
-        self.upload_btn = StyledButton("Resim Yükle", variant="primary")
-        self.upload_btn.clicked.connect(self._on_upload_clicked)
-        header_layout.addWidget(self.upload_btn)
-        
-        layout.addLayout(header_layout)
-
-        # List Widget
-        self.list_widget = QListWidget()
-        self.list_widget.setStyleSheet(f"background-color: {Colors.SURFACE}; border: none;")
-        self.list_widget.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        layout.addWidget(self.list_widget)
-
-        self._render_images()
-        self.tabs.addTab(tab, "Fotoğraflar")
+    # ─── Resim İşlemleri ───────────────────────────────────────────────────────
 
     def _render_images(self) -> None:
         self.list_widget.clear()
@@ -694,9 +955,7 @@ class PropertyEditDialog(QDialog):
             self._swap_orders(idx, idx + 1)
 
     def _swap_orders(self, idx1: int, idx2: int) -> None:
-        # Swap memory
         self.images[idx1], self.images[idx2] = self.images[idx2], self.images[idx1]
-        # Update display orders
         for i, img in enumerate(self.images):
             self.images[i] = PropertyImage(
                 id=img.id, url=img.url, public_id=img.public_id,
@@ -705,7 +964,6 @@ class PropertyEditDialog(QDialog):
             )
         self._render_images()
         
-        # Send API request
         orders = [{"id": img.id, "displayOrder": img.display_order} for img in self.images]
         try:
             property_service.reorder_images(self.property.id, orders)

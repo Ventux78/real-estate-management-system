@@ -270,6 +270,26 @@ class CreatePropertyRequest:
     province: str | None = None
     map_url: str | None = None
     is_map_url_manual: bool = False
+    gross_area: float | None = None
+    net_area: float | None = None
+    room_count: int | None = None
+    living_room_count: int | None = None
+    bathroom_count: int | None = None
+    floor: int | None = None
+    total_floor: int | None = None
+    building_age: int | None = None
+    heating_type: str | None = None
+    dues: float | None = None
+    deed_status: str | None = None
+    video_url: str | None = None
+    virtual_tour_url: str | None = None
+    furnished: bool = False
+    balcony: bool = False
+    elevator: bool = False
+    parking: bool = False
+    eligible_for_credit: bool = False
+    exchange_available: bool = False
+    is_featured: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -291,8 +311,42 @@ class CreatePropertyRequest:
             "address": self.address,
             "mapUrl": self.map_url,
             "isMapUrlManual": self.is_map_url_manual,
+            "furnished": self.furnished,
+            "balcony": self.balcony,
+            "elevator": self.elevator,
+            "parking": self.parking,
+            "eligibleForCredit": self.eligible_for_credit,
+            "exchangeAvailable": self.exchange_available,
+            "isFeatured": self.is_featured,
         }
         if self.description:
             payload["description"] = self.description
+        if self.gross_area is not None:
+            payload["grossArea"] = self.gross_area
+        if self.net_area is not None:
+            payload["netArea"] = self.net_area
+        if self.room_count is not None:
+            payload["roomCount"] = self.room_count
+        if self.living_room_count is not None:
+            payload["livingRoomCount"] = self.living_room_count
+        if self.bathroom_count is not None:
+            payload["bathroomCount"] = self.bathroom_count
+        if self.floor is not None:
+            payload["floor"] = self.floor
+        if self.total_floor is not None:
+            payload["totalFloor"] = self.total_floor
+        if self.building_age is not None:
+            payload["buildingAge"] = self.building_age
+        if self.heating_type:
+            payload["heatingType"] = self.heating_type
+        if self.dues is not None:
+            payload["dues"] = self.dues
+        if self.deed_status:
+            payload["deedStatus"] = self.deed_status
+        if self.video_url:
+            payload["videoUrl"] = self.video_url
+        if self.virtual_tour_url:
+            payload["virtualTourUrl"] = self.virtual_tour_url
         return payload
+
 

@@ -19,6 +19,7 @@ Mimari içindeki görevi:
     View katmanı ApiClient'ı doğrudan kullanmaz; service üzerinden erişir.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -117,7 +118,24 @@ class ApiClient:
         self, method: str, endpoint: str, **kwargs: Any
     ) -> Any:
         url = self._build_url(endpoint)
-        logger.debug(f"{method.upper()} {url} args={kwargs}")
+        request_headers = {**self._session.headers, **(kwargs.get("headers") or {})}
+        request_payload = kwargs.get("json") or kwargs.get("data")
+        files = kwargs.get("files")
+
+        if files is not None:
+            request_headers.pop("Content-Type", None)
+            kwargs["headers"] = request_headers
+        else:
+            kwargs["headers"] = request_headers
+
+        logger.debug("=== API Request ===")
+        logger.debug("%s URL: %s", method.upper(), url)
+        logger.debug("Headers:\n%s", self._format_headers(request_headers))
+        logger.debug("Request Payload (JSON):\n%s", self._pretty_json(request_payload))
+        if files is not None:
+            logger.debug("Files: %s", files)
+        logger.debug("Timeout: %s", self._timeout)
+
         try:
             response = self._session.request(method, url, timeout=self._timeout, **kwargs)
             return self._handle_response(response)
@@ -131,7 +149,14 @@ class ApiClient:
     def get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", endpoint, params=params)
 
-    def post(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
+    def post(
+        self,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        files: list[tuple[str, tuple[str, Any, str]]] | None = None,
+    ) -> Any:
+        if files is not None:
+            return self._request("POST", endpoint, data=data, files=files)
         return self._request("POST", endpoint, json=data)
 
     def put(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
@@ -158,6 +183,28 @@ class ApiClient:
         # Çift slash oluşmaması için trim
         return f"{self._base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
+    def _pretty_json(self, value: Any) -> str:
+        """JSON değerini okunabilir bir string'e dönüştürür."""
+        if value is None:
+            return "null"
+        try:
+            return json.dumps(value, indent=2, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(value)
+
+    def _format_headers(self, headers: Any) -> str:
+        """Yazdırmaya uygun, güvenli başlıklar üretir."""
+        if not headers:
+            return "{}"
+
+        safe_headers: dict[str, str] = {}
+        for key, value in dict(headers).items():
+            if key.lower() == "authorization":
+                safe_headers[key] = "Bearer <redacted>"
+            else:
+                safe_headers[key] = str(value)
+        return json.dumps(safe_headers, indent=2, ensure_ascii=False)
+
     def _handle_response(self, response: Response) -> Any:
         """
         HTTP response'u işler; hata varsa uygun exception fırlatır.
@@ -176,26 +223,59 @@ class ApiClient:
             ServerException: 500
             UnexpectedException: Diğer 4xx/5xx
         """
-        logger.debug(f"Response: {response.status_code} {response.url}")
+        logger.debug("=== API Response ===")
+        logger.debug("HTTP Status: %s", response.status_code)
+        logger.debug("Response Headers:\n%s", self._format_headers(response.headers))
+        logger.debug("Response Body:\n%s", response.text if response.text else "<empty>")
+
+        body: Any = None
+        parsed_json: Any = None
+        try:
+            parsed_json = response.json()
+            body = parsed_json
+            logger.debug("Response JSON:\n%s", self._pretty_json(parsed_json))
+        except ValueError:
+            logger.debug("Response JSON: <not valid JSON>")
 
         # Başarılı yanıtlar (200-299)
         if response.ok:
             if response.status_code == 204 or not response.content:
                 return None
-            try:
-                return response.json()
-            except ValueError:
-                return None
+            return parsed_json if parsed_json is not None else None
 
         # Hata yanıtları
         detail: str | None = None
         try:
-            body = response.json()
-            detail = body.get("message") or body.get("error") or str(body)
-        except ValueError:
+            if isinstance(body, dict):
+                detail = body.get("message") or body.get("error") or str(body)
+            else:
+                detail = str(body)
+        except Exception:
             detail = response.text[:200] if response.text else None
 
         status = response.status_code
+
+        if status == 422:
+            validation_errors: list[str] = []
+            if isinstance(body, dict):
+                errors_raw = body.get("errors", [])
+                if isinstance(errors_raw, list):
+                    validation_errors = [e.get("message", str(e)) for e in errors_raw if isinstance(e, dict)]
+                elif isinstance(errors_raw, dict):
+                    validation_errors = [str(errors_raw)]
+
+                error_payload = body.get("error")
+                if isinstance(error_payload, dict):
+                    details = error_payload.get("details")
+                    if isinstance(details, dict):
+                        field_errors = details.get("fieldErrors") or details.get("errors")
+                        if isinstance(field_errors, dict):
+                            validation_errors = [f"{k}: {v}" for k, v in field_errors.items()]
+                        elif isinstance(field_errors, list):
+                            validation_errors = [str(item) for item in field_errors]
+
+            logger.debug("Validation Errors:\n%s", self._pretty_json(validation_errors))
+            logger.debug("Error Message: %s", detail)
 
         if status == 401:
             raise UnauthorizedException(detail=detail)
