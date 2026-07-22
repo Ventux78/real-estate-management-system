@@ -82,7 +82,10 @@ export default async function PropertyDetailPage({
                 <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">{property.title}</h1>
                 <div className="flex items-center text-[#A1A1AA]">
                   <MapPin className="h-5 w-5 mr-2 text-slate-400" />
-                  <span className="text-lg">{property.district}, {property.city}</span>
+                  <span className="text-lg">
+                    {property.neighborhood ? `${property.neighborhood}, ` : ''}
+                    {property.district}, {property.city}
+                  </span>
                 </div>
               </div>
               <div className="md:text-right">
@@ -111,7 +114,6 @@ export default async function PropertyDetailPage({
                 </div>
               </section>
 
-
               {(() => {
                 const features: string[] = [];
                 if (property.furnished) features.push('Eşyalı');
@@ -123,7 +125,7 @@ export default async function PropertyDetailPage({
                     <h2 className="text-2xl font-bold text-white mb-4">Özellikler</h2>
                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {features.map((feature: string, idx: number) => (
-                        <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-slate-100">
+                        <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-[#333333]">
                           <span className="w-2 h-2 rounded-full bg-brand-400 mr-3" />
                           {feature}
                         </li>
@@ -132,17 +134,55 @@ export default async function PropertyDetailPage({
                   </section>
                 ) : null;
               })()}
+
+              {/* Konum & Harita Bilgisi */}
+              <section className="bg-[#18181B] border border-[#27272A] rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-6 h-6 text-red-500" />
+                    <h2 className="text-2xl font-bold text-white">Konum</h2>
+                  </div>
+                  {property.mapUrl && (
+                    <a
+                      href={property.mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-brand-400 hover:text-brand-300 transition-colors"
+                    >
+                      <span>Haritada Aç</span>
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+                <p className="text-[#A1A1AA] text-base leading-relaxed mb-4">
+                  {[property.address, property.neighborhood, property.district, property.city]
+                    .filter(Boolean)
+                    .join(', ')}
+                </p>
+                {property.mapUrl && (
+                  <a
+                    href={property.mapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    <span>Google Maps İle Haritada Gör</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                  </a>
+                )}
+              </section>
             </div>
 
             {/* Right: Summary Card & Action */}
             <div className="space-y-6">
               <div className="bg-[#121212] border border-[#333333] rounded-xl p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-white mb-6 pb-4 border-b border-slate-100">Özet Bilgiler</h3>
+                <h3 className="text-lg font-bold text-white mb-6 pb-4 border-b border-[#333333]">Özet Bilgiler</h3>
                 
                 <div className="space-y-4">
                   {property.propertyType !== 'LAND' && (
                     <div className="flex justify-between items-center">
-                      <div className="flex items-center text-slate-500">
+                      <div className="flex items-center text-[#A1A1AA]">
                         <Bed className="w-5 h-5 mr-3" />
                         <span>Oda + Salon</span>
                       </div>
@@ -153,7 +193,7 @@ export default async function PropertyDetailPage({
                   )}
                   
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center text-slate-500">
+                    <div className="flex items-center text-[#A1A1AA]">
                       <Maximize className="w-5 h-5 mr-3" />
                       <span>Brüt / Net Alan</span>
                     </div>
@@ -163,7 +203,7 @@ export default async function PropertyDetailPage({
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center text-slate-500">
+                    <div className="flex items-center text-[#A1A1AA]">
                       <Calendar className="w-5 h-5 mr-3" />
                       <span>İlan Tarihi</span>
                     </div>
@@ -171,7 +211,7 @@ export default async function PropertyDetailPage({
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center text-slate-500">
+                    <div className="flex items-center text-[#A1A1AA]">
                       <Hash className="w-5 h-5 mr-3" />
                       <span>İlan No</span>
                     </div>
@@ -179,11 +219,24 @@ export default async function PropertyDetailPage({
                   </div>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-slate-100">
+                <div className="mt-8 pt-6 border-t border-[#333333] space-y-3">
+                  {property.mapUrl && (
+                    <a
+                      href={property.mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#27272A] hover:bg-[#3F3F46] text-white font-medium rounded-xl border border-[#3F3F46] transition-colors shadow-sm"
+                    >
+                      <MapPin className="w-5 h-5 text-red-500" />
+                      <span>Google Maps'te Gör</span>
+                      <ExternalLink className="w-4 h-4 text-slate-400 ml-auto" />
+                    </a>
+                  )}
                   <WhatsAppButton />
                 </div>
               </div>
             </div>
+
 
           </div>
         </div>

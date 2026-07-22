@@ -43,6 +43,8 @@ export interface Property {
   balcony: boolean;
   elevator: boolean;
   parking: boolean;
+  mapUrl?: string | null;
+  isMapUrlManual?: boolean;
   images: PropertyImage[];
   isPublished: boolean;
   createdAt: string;
