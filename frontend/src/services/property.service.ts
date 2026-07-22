@@ -38,6 +38,8 @@ export const propertyService = {
     // Always show only published properties on frontend
     params.set('isPublished', 'true');
 
+    console.log('[propertyService.getProperties] Sending API request with query params:', params.toString());
+
     // withRetry: up to 3 attempts, 2 s apart, only for 5xx / network errors
     const response = await withRetry(() => api.get(`/properties?${params.toString()}`));
 

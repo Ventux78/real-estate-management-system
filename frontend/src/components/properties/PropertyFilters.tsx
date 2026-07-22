@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -44,6 +45,18 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
     },
   });
 
+  // Sync form values whenever currentFilters change externally (e.g. clear filters, browser nav)
+  useEffect(() => {
+    reset({
+      city: currentFilters.city || '',
+      district: currentFilters.district || '',
+      listingType: currentFilters.listingType || '',
+      propertyType: currentFilters.propertyType || '',
+      minimumPrice: currentFilters.minimumPrice ? String(currentFilters.minimumPrice) : '',
+      maximumPrice: currentFilters.maximumPrice ? String(currentFilters.maximumPrice) : '',
+    });
+  }, [currentFilters, reset]);
+
   const onSubmit = (data: FilterFormValues) => {
     const filters: Partial<PropertyFiltersType> = {};
 
@@ -68,6 +81,9 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
     onFilterChange({});
   };
 
+  const listingTypeRegister = register('listingType');
+  const propertyTypeRegister = register('propertyType');
+
   return (
     <div className="rounded-xl border border-[#333333] bg-[#1E1E1E] p-6 shadow-sm sticky top-24">
       <h3 className="text-lg font-semibold text-white mb-4">Filtreler</h3>
@@ -76,7 +92,14 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
         {/* Listing Type */}
         <div>
           <label className="mb-1 block text-sm font-medium text-[#A1A1AA]">İlan Tipi</label>
-          <select {...register('listingType')} className="w-full rounded-md border border-[#333333] bg-[#121212] text-white p-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
+          <select
+            {...listingTypeRegister}
+            onChange={(e) => {
+              listingTypeRegister.onChange(e);
+              handleSubmit(onSubmit)();
+            }}
+            className="w-full rounded-md border border-[#333333] bg-[#121212] text-white p-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          >
             <option value="">Tümü</option>
             <option value="FOR_SALE">Satılık</option>
             <option value="FOR_RENT">Kiralık</option>
@@ -86,7 +109,14 @@ export function PropertyFilters({ currentFilters, onFilterChange }: PropertyFilt
         {/* Property Type */}
         <div>
           <label className="mb-1 block text-sm font-medium text-[#A1A1AA]">Emlak Tipi</label>
-          <select {...register('propertyType')} className="w-full rounded-md border border-[#333333] bg-[#121212] text-white p-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400">
+          <select
+            {...propertyTypeRegister}
+            onChange={(e) => {
+              propertyTypeRegister.onChange(e);
+              handleSubmit(onSubmit)();
+            }}
+            className="w-full rounded-md border border-[#333333] bg-[#121212] text-white p-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+          >
             <option value="">Tümü</option>
             <option value="APARTMENT">Daire</option>
             <option value="HOUSE">Ev / Müstakil</option>

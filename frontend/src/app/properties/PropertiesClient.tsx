@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { propertyService } from '@/services/property.service';
 import { PropertiesResponse, PropertyFilters as PropertyFiltersType } from '@/types/property';
@@ -18,11 +17,48 @@ interface PropertiesClientProps {
   initialData: PropertiesResponse;
 }
 
+function parseUrlFilters(): PropertyFiltersType {
+  if (typeof window === 'undefined') return {};
+  const searchParams = new URLSearchParams(window.location.search);
+  const urlFilters: PropertyFiltersType = {};
+
+  const page = searchParams.get('page');
+  if (page && !isNaN(Number(page))) urlFilters.page = Number(page);
+
+  const city = searchParams.get('city');
+  if (city) urlFilters.city = city.trim();
+
+  const district = searchParams.get('district');
+  if (district) urlFilters.district = district.trim();
+
+  const listingType = searchParams.get('listingType');
+  if (listingType) urlFilters.listingType = listingType as PropertyFiltersType['listingType'];
+
+  const propertyType = searchParams.get('propertyType');
+  if (propertyType) urlFilters.propertyType = propertyType as PropertyFiltersType['propertyType'];
+
+  const minimumPrice = searchParams.get('minimumPrice');
+  if (minimumPrice && !isNaN(Number(minimumPrice))) urlFilters.minimumPrice = Number(minimumPrice);
+
+  const maximumPrice = searchParams.get('maximumPrice');
+  if (maximumPrice && !isNaN(Number(maximumPrice))) urlFilters.maximumPrice = Number(maximumPrice);
+
+  const sortBy = searchParams.get('sortBy');
+  if (sortBy) urlFilters.sortBy = sortBy as PropertyFiltersType['sortBy'];
+
+  const sortOrder = searchParams.get('sortOrder');
+  if (sortOrder) urlFilters.sortOrder = sortOrder as PropertyFiltersType['sortOrder'];
+
+  const search = searchParams.get('search');
+  if (search) urlFilters.search = search.trim();
+
+  return urlFilters;
+}
+
 export default function PropertiesClient({
   initialFilters,
   initialData,
 }: PropertiesClientProps) {
-  const router = useRouter();
   const [filters, setFilters] = useState<PropertyFiltersType>(initialFilters);
 
   // Extract sorting parameters and search term for client-side filtering
@@ -32,6 +68,7 @@ export default function PropertiesClient({
 
   // ── URL Sync ──────────────────────────────────────────────────────────────
   const syncToUrl = useCallback((newFilters: PropertyFiltersType) => {
+    if (typeof window === 'undefined') return;
     const params = new URLSearchParams();
     const entries = Object.entries(newFilters) as [keyof PropertyFiltersType, PropertyFiltersType[keyof PropertyFiltersType]][];
     entries.forEach(([key, value]) => {
@@ -40,58 +77,94 @@ export default function PropertiesClient({
       }
     });
     const queryString = params.toString();
-    router.push(queryString ? `/properties?${queryString}` : '/properties');
-  }, [router]);
+    const newPath = queryString ? `/properties?${queryString}` : '/properties';
+    window.history.pushState(null, '', newPath);
+  }, []);
+
+  // Listen to popstate (browser back/forward navigation)
+  useEffect(() => {
+    const handlePopState = () => {
+      setFilters(parseUrlFilters());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // ── Filter Updates ────────────────────────────────────────────────────────
-  const updateFilters = useCallback((newFilters: PropertyFiltersType) => {
-    setFilters(newFilters);
-    syncToUrl(newFilters);
+  const updateFilters = useCallback((updater: (prev: PropertyFiltersType) => PropertyFiltersType) => {
+    setFilters((prev) => {
+      const nextFilters = updater(prev);
+      syncToUrl(nextFilters);
+      return nextFilters;
+    });
   }, [syncToUrl]);
 
   const handleFilterChange = useCallback((filterValues: Partial<PropertyFiltersType>) => {
-    // Merge with existing sort/search, reset page to 1
-    const merged: PropertyFiltersType = {
-      ...filterValues,
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
-      search: filters.search,
-      page: 1,
-    };
-    updateFilters(merged);
-  }, [filters.sortBy, filters.sortOrder, filters.search, updateFilters]);
+    updateFilters((prev) => {
+      const nextFilters: PropertyFiltersType = {
+        city: filterValues.city,
+        district: filterValues.district,
+        listingType: filterValues.listingType,
+        propertyType: filterValues.propertyType,
+        minimumPrice: filterValues.minimumPrice,
+        maximumPrice: filterValues.maximumPrice,
+        sortBy: prev.sortBy,
+        sortOrder: prev.sortOrder,
+        search: prev.search,
+        page: 1,
+      };
+
+      // Clean up undefined / empty values
+      (Object.keys(nextFilters) as (keyof PropertyFiltersType)[]).forEach((key) => {
+        if (nextFilters[key] === undefined || nextFilters[key] === '') {
+          delete nextFilters[key];
+        }
+      });
+
+      return nextFilters;
+    });
+  }, [updateFilters]);
 
   const handlePageChange = useCallback((newPage: number) => {
-    updateFilters({ ...filters, page: newPage });
-  }, [filters, updateFilters]);
+    updateFilters((prev) => ({ ...prev, page: newPage }));
+  }, [updateFilters]);
 
   const handleSearchChange = useCallback((search: string) => {
-    updateFilters({ ...filters, search: search || undefined, page: 1 });
-  }, [filters, updateFilters]);
+    updateFilters((prev) => {
+      const nextFilters = { ...prev, search: search || undefined, page: 1 };
+      if (!search) delete nextFilters.search;
+      return nextFilters;
+    });
+  }, [updateFilters]);
 
   const handleSortChange = useCallback((newSortBy: string, newSortOrder: 'asc' | 'desc') => {
-    updateFilters({
-      ...filters,
+    updateFilters((prev) => ({
+      ...prev,
       sortBy: newSortBy as PropertyFiltersType['sortBy'],
       sortOrder: newSortOrder,
       page: 1,
-    });
-  }, [filters, updateFilters]);
+    }));
+  }, [updateFilters]);
+
+  // ── Check if current filters match initialFilters (initial SSR load) ───────
+  const isInitialFilters = useMemo(() => {
+    return JSON.stringify(filters) === JSON.stringify(initialFilters);
+  }, [filters, initialFilters]);
 
   // ── Data Fetching ─────────────────────────────────────────────────────────
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['properties', filters],
     queryFn: () => propertyService.getProperties(filters),
-    initialData: initialData,
+    initialData: isInitialFilters ? initialData : undefined,
     staleTime: 60000,
   });
 
   // ── Client-side Search Filter ─────────────────────────────────────────────
   const filteredData = useMemo(() => {
-    if (!data?.data) return [];
-    if (!searchTerm) return data.data;
+    const propertiesList = data?.data || [];
+    if (!searchTerm) return propertiesList;
     const lowerSearch = searchTerm.toLowerCase();
-    return data.data.filter((property) => property.title.toLowerCase().includes(lowerSearch));
+    return propertiesList.filter((property) => property.title.toLowerCase().includes(lowerSearch));
   }, [data, searchTerm]);
 
   /**
@@ -150,6 +223,8 @@ export default function PropertiesClient({
       );
     }
 
+    const meta = data?.meta;
+
     return (
       <>
         {/* Slight opacity during filter/page refetch — keeps cards visible */}
@@ -163,22 +238,22 @@ export default function PropertiesClient({
         </div>
 
         {/* Pagination */}
-        {data.meta && data.meta.totalPages > 1 && (
+        {meta && meta.totalPages > 1 && (
           <div className="mt-12 flex justify-center items-center space-x-4">
             <Button
               variant="outline"
-              disabled={data.meta.page <= 1}
-              onClick={() => handlePageChange(data.meta.page - 1)}
+              disabled={meta.page <= 1}
+              onClick={() => handlePageChange(meta.page - 1)}
             >
               <ChevronLeft className="mr-2 h-4 w-4" /> Önceki
             </Button>
             <span className="text-sm font-medium text-[#A1A1AA]">
-              Sayfa {data.meta.page} / {data.meta.totalPages}
+              Sayfa {meta.page} / {meta.totalPages}
             </span>
             <Button
               variant="outline"
-              disabled={data.meta.page >= data.meta.totalPages}
-              onClick={() => handlePageChange(data.meta.page + 1)}
+              disabled={meta.page >= meta.totalPages}
+              onClick={() => handlePageChange(meta.page + 1)}
             >
               Sonraki <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
