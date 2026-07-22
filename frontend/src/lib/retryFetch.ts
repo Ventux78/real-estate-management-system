@@ -3,7 +3,7 @@
  * Using named constants instead of magic numbers.
  */
 const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 2000;
+const RETRY_DELAY_MS = 1000;
 
 /**
  * Determines whether a failed request should be retried.

@@ -43,11 +43,42 @@ export function createApp(): Application {
   // 4. CORS — Cross-Origin Resource Sharing
   // ─────────────────────────────────────────────────────────
   // Neden bu sırada: OPTIONS preflight istekleri route handler'lara
-  // ulaşmadan cevaplanmalı. Aynı zamanda body parse'dan sonra
-  // gelmeli ki origin bilgisine erişilebilin.
+  // ulaşmadan cevaplanmalı.
+  const defaultAllowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+  ];
+
+  const envOrigins = (env.CORS_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const allowedOriginsSet = new Set([...defaultAllowedOrigins, ...envOrigins]);
+
   app.use(
     cors({
-      origin: env.CORS_ORIGIN,
+      origin: (requestOrigin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl, server-to-server)
+        if (!requestOrigin) {
+          return callback(null, true);
+        }
+
+        // Check if origin is explicitly allowed or matches local defaults
+        if (allowedOriginsSet.has(requestOrigin)) {
+          return callback(null, true);
+        }
+
+        // Check for Vercel deployment preview / production domains (*.vercel.app)
+        if (/\.vercel\.app$/.test(requestOrigin)) {
+          return callback(null, true);
+        }
+
+        console.warn(`[CORS] Blocked request from origin: ${requestOrigin}`);
+        return callback(null, false);
+      },
       credentials: true, // Cookie/Authorization header izni
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
