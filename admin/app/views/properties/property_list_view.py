@@ -353,8 +353,9 @@ class PropertyListView(QWidget):
         # Düzenle butonu
         edit_btn = StyledButton("✏", variant="secondary", small=True)
         edit_btn.setFixedWidth(36)
-        edit_btn.setToolTip("Düzenle (Sprint 6'da aktif)")
-        edit_btn.setEnabled(False)  # Sprint 6'da aktif edilecek
+        edit_btn.setToolTip("İlanı Düzenle")
+        edit_btn.setEnabled(True)
+        edit_btn.clicked.connect(lambda checked, p=prop: self._on_edit_property(p))
         layout.addWidget(edit_btn)
 
         # Yayın durumu butonu

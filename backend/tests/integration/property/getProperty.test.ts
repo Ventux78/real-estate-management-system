@@ -123,6 +123,7 @@ describe('GET /api/v1/properties/:id', () => {
       price: 750000,
       city: 'Ankara',
       district: 'Çankaya',
+      neighborhood: 'Kızılay',
       address: 'Atatürk Caddesi No:1',
     };
     const createRes = await request(app)

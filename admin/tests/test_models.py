@@ -155,6 +155,7 @@ class TestCreatePropertyRequest(unittest.TestCase):
             price=2000000.0,
             city="Izmir",
             district="Bornova",
+            neighborhood="Erzene",
             address="Test Adres 1",
         )
         d = req.to_dict()
@@ -164,13 +165,14 @@ class TestCreatePropertyRequest(unittest.TestCase):
         self.assertEqual(d["price"], 2000000.0)
         self.assertEqual(d["city"], "Izmir")
         self.assertEqual(d["district"], "Bornova")
+        self.assertEqual(d["neighborhood"], "Erzene")
         self.assertEqual(d["address"], "Test Adres 1")
 
     def test_to_dict_optional_description(self):
         """Description varsa dict'e eklenmeli."""
         req = CreatePropertyRequest(
             title="Test", listing_type="FOR_RENT", property_type="OFFICE",
-            price=5000.0, city="Istanbul", district="Sisli", address="Adres",
+            price=5000.0, city="Istanbul", district="Sisli", neighborhood="Merkez", address="Adres",
             description="Güzel ofis",
         )
         d = req.to_dict()
@@ -181,10 +183,11 @@ class TestCreatePropertyRequest(unittest.TestCase):
         """Description None ise dict'te olmamalı."""
         req = CreatePropertyRequest(
             title="Test", listing_type="FOR_RENT", property_type="OFFICE",
-            price=5000.0, city="Istanbul", district="Sisli", address="Adres",
+            price=5000.0, city="Istanbul", district="Sisli", neighborhood="Merkez", address="Adres",
         )
         d = req.to_dict()
         self.assertNotIn("description", d)
+
 
 
 if __name__ == "__main__":

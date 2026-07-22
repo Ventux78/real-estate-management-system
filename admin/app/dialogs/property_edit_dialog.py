@@ -11,21 +11,24 @@ Neden bu şekilde tasarlandı:
 """
 
 import os
+import webbrowser
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QScrollArea,
     QTabWidget, QFileDialog, QListWidget, QListWidgetItem, QProgressBar, QMessageBox, QFrame,
-    QGridLayout, QSizePolicy
+    QGridLayout, QSizePolicy, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import Qt, Signal, QThread, QObject, QSize, QUrl
 from PySide6.QtGui import QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 from app.services.property_service import property_service
+from app.services.location_service import location_service
+from app.services.maps_url_service import maps_url_service
 from app.models.property import Property, PropertyImage
 from app.api.exceptions import ApiException
 from app.config.constants import Colors, FontSizes, ListingType, PropertyType
 from app.widgets.styled_button import StyledButton
-from app.widgets.styled_input import StyledLineEdit, StyledComboBox, StyledTextEdit
+from app.widgets.styled_input import StyledLineEdit, StyledComboBox, SearchableComboBox, StyledTextEdit
 from app.utils.validators import validate_create_property_form
 
 # ─── Image Upload Worker ───────────────────────────────────────────────────────
@@ -191,20 +194,366 @@ class PropertyEditDialog(QDialog):
         layout.addLayout(footer)
 
     def _setup_info_tab(self) -> None:
-        # Şimdilik sadece salt okunur gösterim veya sprint 5'teki gibi formu doldurabiliriz.
-        # Sprint 6 odağı Image Management olduğu için formu basit tutuyorum.
         tab = QWidget()
-        layout = QVBoxLayout(tab)
-        
-        title_label = QLabel(f"<h2>{self.property.title}</h2>")
-        layout.addWidget(title_label)
-        
-        layout.addWidget(QLabel(f"<b>Fiyat:</b> {self.property.price} ₺"))
-        layout.addWidget(QLabel(f"<b>Şehir/İlçe:</b> {self.property.city} / {self.property.district}"))
-        layout.addWidget(QLabel(f"<b>Adres:</b> {self.property.address}"))
-        
-        layout.addStretch()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background-color: transparent;")
+
+        form_container = QWidget()
+        form_container.setStyleSheet(f"background-color: {Colors.SURFACE};")
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setSpacing(16)
+        form_layout.setContentsMargins(20, 20, 20, 16)
+
+        # ── Temel Bilgiler ─────────────────────────────────────────────────
+        self._add_section_title(form_layout, "Temel Bilgiler")
+
+        self._title_input = StyledLineEdit(placeholder="İlan başlığını girin")
+        self._title_input.setText(self.property.title)
+        self._add_form_row(form_layout, "Başlık *", self._title_input)
+
+        self._price_input = StyledLineEdit(placeholder="Örn: 2500000")
+        self._price_input.setText(str(self.property.price))
+        self._add_form_row(form_layout, "Fiyat (₺) *", self._price_input)
+
+        self._listing_type_combo = StyledComboBox()
+        for lt in ListingType:
+            self._listing_type_combo.addItem(lt.display(), lt.value)
+        idx_lt = self._listing_type_combo.findData(self.property.listing_type)
+        if idx_lt != -1:
+            self._listing_type_combo.setCurrentIndex(idx_lt)
+        self._add_form_row(form_layout, "İlan Tipi *", self._listing_type_combo)
+
+        self._property_type_combo = StyledComboBox()
+        for pt in PropertyType:
+            self._property_type_combo.addItem(pt.display(), pt.value)
+        idx_pt = self._property_type_combo.findData(self.property.property_type)
+        if idx_pt != -1:
+            self._property_type_combo.setCurrentIndex(idx_pt)
+        self._add_form_row(form_layout, "Mülk Tipi *", self._property_type_combo)
+
+        # ── Konum ──────────────────────────────────────────────────────────
+        self._add_section_title(form_layout, "Konum")
+
+        self._province_combo = SearchableComboBox(placeholder="-- İl Seçin --")
+        self._province_combo.addItem("-- İl Seçin --", "")
+        for p in location_service.get_provinces():
+            self._province_combo.addItem(p, p)
+        self._add_form_row(form_layout, "İl *", self._province_combo)
+
+        self._district_combo = SearchableComboBox(placeholder="-- İlçe Seçin --")
+        self._district_combo.setEnabled(False)
+        self._add_form_row(form_layout, "İlçe *", self._district_combo)
+
+        self._neighborhood_combo = SearchableComboBox(placeholder="-- Mahalle Seçin --")
+        self._neighborhood_combo.setEnabled(False)
+        self._neighborhood_combo.currentIndexChanged.connect(self._on_location_field_changed)
+        self._add_form_row(form_layout, "Mahalle *", self._neighborhood_combo)
+
+        self._address_input = StyledLineEdit(placeholder="Sokak, Bina No, Daire No vb.")
+        self._address_input.setText(self.property.address)
+        self._address_input.textChanged.connect(self._on_location_field_changed)
+        self._add_form_row(form_layout, "Adres Detayı *", self._address_input)
+
+        # ── Google Maps Konumu ──────────────────────────────────────────────
+        self._add_section_title(form_layout, "Google Maps Konumu")
+
+        radio_layout = QHBoxLayout()
+        radio_layout.setSpacing(20)
+
+        self._map_auto_radio = QRadioButton("Otomatik Oluştur")
+        self._map_manual_radio = QRadioButton("Manuel Gir")
+
+        radio_style = f"color: {Colors.TEXT_PRIMARY}; font-size: {FontSizes.NORMAL}pt;"
+        self._map_auto_radio.setStyleSheet(radio_style)
+        self._map_manual_radio.setStyleSheet(radio_style)
+
+        self._map_mode_group = QButtonGroup(self)
+        self._map_mode_group.addButton(self._map_auto_radio, 1)
+        self._map_mode_group.addButton(self._map_manual_radio, 2)
+        self._map_auto_radio.toggled.connect(self._on_map_mode_changed)
+
+        radio_layout.addWidget(self._map_auto_radio)
+        radio_layout.addWidget(self._map_manual_radio)
+        radio_layout.addStretch()
+        form_layout.addLayout(radio_layout)
+
+        url_row = QWidget()
+        url_layout = QHBoxLayout(url_row)
+        url_layout.setContentsMargins(0, 0, 0, 0)
+        url_layout.setSpacing(10)
+
+        self._map_url_input = StyledLineEdit(placeholder="https://www.google.com/maps/...")
+        self._map_url_input.textChanged.connect(self._update_map_button_state)
+
+        self._view_map_btn = StyledButton("📍 Haritada Gör", variant="secondary")
+        self._view_map_btn.setEnabled(False)
+        self._view_map_btn.clicked.connect(self._on_view_map_clicked)
+
+        url_layout.addWidget(self._map_url_input, stretch=1)
+        url_layout.addWidget(self._view_map_btn)
+
+        self._add_form_row(form_layout, "Google Maps URL", url_row)
+
+        # ── Açıklama ───────────────────────────────────────────────────────
+        self._add_section_title(form_layout, "Açıklama")
+
+        self._description_input = StyledTextEdit(placeholder="İlan açıklaması")
+        if self.property.description:
+            self._description_input.setPlainText(self.property.description)
+        self._description_input.setFixedHeight(90)
+        self._add_form_row(form_layout, "Açıklama", self._description_input)
+
+        # Hata mesajı
+        self._info_error_label = QLabel("")
+        self._info_error_label.setWordWrap(True)
+        self._info_error_label.setStyleSheet(f"color: {Colors.DANGER}; font-size: {FontSizes.SMALL}pt; padding: 4px 0;")
+        self._info_error_label.hide()
+        form_layout.addWidget(self._info_error_label)
+
+        # Kaydet butonu
+        save_btn_layout = QHBoxLayout()
+        save_btn_layout.addStretch()
+        self._save_info_btn = StyledButton("💾  Değişiklikleri Kaydet", variant="primary")
+        self._save_info_btn.clicked.connect(self._on_save_info)
+        save_btn_layout.addWidget(self._save_info_btn)
+        form_layout.addLayout(save_btn_layout)
+
+        form_layout.addStretch()
+        scroll.setWidget(form_container)
+        tab_layout.addWidget(scroll)
+
+        # Mevcut konum seçimlerini ve Google Maps modunu hiyerarşik yükle
+        self._load_location_data()
+
+        # Sinyal bağlantıları
+        self._province_combo.currentIndexChanged.connect(self._on_province_changed)
+        self._district_combo.currentIndexChanged.connect(self._on_district_changed)
+
         self.tabs.addTab(tab, "Temel Bilgiler")
+
+    def _load_location_data(self) -> None:
+        """İlanın mevcut İl → İlçe → Mahalle ve Google Maps URL seçimlerini doldurur."""
+        current_province = self.property.province or self.property.city
+        current_district = self.property.district
+        current_neighborhood = self.property.neighborhood
+
+        # 1. İl Seçimi
+        idx_p = self._province_combo.findData(current_province)
+        if idx_p != -1:
+            self._province_combo.setCurrentIndex(idx_p)
+
+            # 2. İlçeleri Doldur & Seç
+            self._district_combo.clear()
+            self._district_combo.addItem("-- İlçe Seçin --", "")
+            districts = location_service.get_districts(current_province)
+            for d in districts:
+                self._district_combo.addItem(d, d)
+
+            idx_d = self._district_combo.findData(current_district)
+            if idx_d != -1:
+                self._district_combo.setCurrentIndex(idx_d)
+                self._district_combo.setEnabled(True)
+
+                # 3. Mahalleleri Doldur & Seç
+                self._neighborhood_combo.clear()
+                self._neighborhood_combo.addItem("-- Mahalle Seçin --", "")
+                neighborhoods = location_service.get_neighborhoods(current_province, current_district)
+                for n in neighborhoods:
+                    self._neighborhood_combo.addItem(n, n)
+
+                if current_neighborhood:
+                    idx_n = self._neighborhood_combo.findData(current_neighborhood)
+                    if idx_n != -1:
+                        self._neighborhood_combo.setCurrentIndex(idx_n)
+                self._neighborhood_combo.setEnabled(True)
+
+        # 4. Google Maps Modunu ve URL'yi Yükle
+        if self.property.is_map_url_manual:
+            self._map_manual_radio.setChecked(True)
+            self._map_url_input.setReadOnly(False)
+            self._map_url_input.setText(self.property.map_url or "")
+        else:
+            self._map_auto_radio.setChecked(True)
+            self._map_url_input.setReadOnly(True)
+            if self.property.map_url:
+                self._map_url_input.setText(self.property.map_url)
+            else:
+                self._update_auto_map_url()
+        self._update_map_button_state()
+
+    def _on_province_changed(self) -> None:
+        """İl değiştiğinde İlçe ve Mahalle seçimlerini sıfırlar."""
+        province = self._province_combo.currentData()
+        self._district_combo.blockSignals(True)
+        self._neighborhood_combo.blockSignals(True)
+
+        self._district_combo.clear()
+        self._neighborhood_combo.clear()
+
+        if province:
+            self._district_combo.addItem("-- İlçe Seçin --", "")
+            for d in location_service.get_districts(province):
+                self._district_combo.addItem(d, d)
+            self._district_combo.setEnabled(True)
+        else:
+            self._district_combo.setEnabled(False)
+
+        self._neighborhood_combo.setEnabled(False)
+        self._district_combo.blockSignals(False)
+        self._neighborhood_combo.blockSignals(False)
+
+        self._on_location_field_changed()
+
+    def _on_district_changed(self) -> None:
+        """İlçe değiştiğinde Mahalle seçimlerini sıfırlar."""
+        province = self._province_combo.currentData()
+        district = self._district_combo.currentData()
+        self._neighborhood_combo.blockSignals(True)
+
+        self._neighborhood_combo.clear()
+
+        if province and district:
+            self._neighborhood_combo.addItem("-- Mahalle Seçin --", "")
+            for n in location_service.get_neighborhoods(province, district):
+                self._neighborhood_combo.addItem(n, n)
+            self._neighborhood_combo.setEnabled(True)
+        else:
+            self._neighborhood_combo.setEnabled(False)
+
+        self._neighborhood_combo.blockSignals(False)
+
+        self._on_location_field_changed()
+
+    def _on_location_field_changed(self) -> None:
+        """Konum alanlarından biri değiştiğinde otomatik mod aktifse URL'yi günceller."""
+        if self._map_auto_radio.isChecked():
+            self._update_auto_map_url()
+
+    def _on_map_mode_changed(self) -> None:
+        """Mod değiştiğinde URL alanının editlenebilirliğini ayarlar."""
+        is_auto = self._map_auto_radio.isChecked()
+        if is_auto:
+            self._map_url_input.setReadOnly(True)
+            self._update_auto_map_url()
+        else:
+            self._map_url_input.setReadOnly(False)
+        self._update_map_button_state()
+
+    def _update_auto_map_url(self) -> None:
+        """Konum bilgilerinden otomatik URL üretir."""
+        province = self._province_combo.currentData() or ""
+        district = self._district_combo.currentData() or ""
+        neighborhood = self._neighborhood_combo.currentData() or ""
+        address = self._address_input.text().strip()
+
+        url = maps_url_service.generate_url(address, neighborhood, district, province)
+        self._map_url_input.setText(url)
+        self._update_map_button_state()
+
+    def _update_map_button_state(self) -> None:
+        """'Haritada Gör' butonunu URL validasyonuna göre aktif/pasif yapar."""
+        url = self._map_url_input.text().strip()
+        is_valid = maps_url_service.is_valid_url(url)
+        self._view_map_btn.setEnabled(is_valid)
+
+    def _on_view_map_clicked(self) -> None:
+        """'Haritada Gör' butonuna basıldığında URL'yi varsayılan tarayıcıda açar."""
+        url = self._map_url_input.text().strip()
+        if maps_url_service.is_valid_url(url):
+            if not (url.startswith("http://") or url.startswith("https://")):
+                url = "https://" + url
+            webbrowser.open(url)
+
+    def _add_section_title(self, layout: QVBoxLayout, title: str) -> None:
+        label = QLabel(title)
+        label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {FontSizes.SMALL}pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding-top: 8px;
+            border-bottom: 1px solid {Colors.BORDER};
+            padding-bottom: 8px;
+        """)
+        layout.addWidget(label)
+
+    def _add_form_row(self, layout: QVBoxLayout, label_text: str, widget: QWidget) -> None:
+        row = QWidget()
+        row_layout = QVBoxLayout(row)
+        row_layout.setSpacing(6)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel(label_text)
+        label.setStyleSheet(f"""
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {FontSizes.SMALL}pt;
+            font-weight: 600;
+        """)
+        row_layout.addWidget(label)
+        row_layout.addWidget(widget)
+        layout.addWidget(row)
+
+    def _on_save_info(self) -> None:
+        self._info_error_label.hide()
+        self._save_info_btn.setEnabled(False)
+
+        title = self._title_input.text().strip()
+        price_str = self._price_input.text().strip()
+        province = self._province_combo.currentData() or ""
+        district = self._district_combo.currentData() or ""
+        neighborhood = self._neighborhood_combo.currentData() or ""
+        address = self._address_input.text().strip()
+        description = self._description_input.toPlainText().strip() or None
+        listing_type = self._listing_type_combo.currentData()
+        property_type = self._property_type_combo.currentData()
+        is_map_manual = self._map_manual_radio.isChecked()
+        map_url = self._map_url_input.text().strip()
+
+        is_valid, errors = validate_create_property_form(
+            title, price_str, province, district, neighborhood, address, map_url, is_map_manual
+        )
+
+        if not is_valid:
+            self._info_error_label.setText("⚠ " + "\n".join(errors))
+            self._info_error_label.show()
+            self._save_info_btn.setEnabled(True)
+            return
+
+        try:
+            price = float(price_str.replace(",", "."))
+            fields = {
+                "title": title,
+                "listingType": listing_type,
+                "propertyType": property_type,
+                "price": price,
+                "city": province,
+                "province": province,
+                "district": district,
+                "neighborhood": neighborhood,
+                "address": address,
+                "description": description,
+                "mapUrl": map_url,
+                "isMapUrlManual": is_map_manual,
+            }
+            updated = property_service.update_property(self.property.id, fields)
+            self.property = updated
+            self.property_updated.emit()
+            QMessageBox.information(self, "Başarılı", "İlan bilgileri güncellendi.")
+        except ApiException as e:
+            self._info_error_label.setText(f"⚠ {e.message}")
+            self._info_error_label.show()
+        except Exception as e:
+            self._info_error_label.setText(f"⚠ Beklenmeyen hata: {e}")
+            self._info_error_label.show()
+        finally:
+            self._save_info_btn.setEnabled(True)
+
 
     def _setup_images_tab(self) -> None:
         tab = QWidget()

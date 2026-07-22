@@ -72,12 +72,12 @@ describe('PUT /api/v1/properties/:id', () => {
 
   it('Property 9: partial update only changes sent fields, leaves others unchanged', async () => {
     // Validates: Requirements 10.4, 4.1
-    const property = await createTestProperty(testUserId, { city: 'İstanbul', price: 500000 });
+    const property = await createTestProperty(testUserId, { city: 'İstanbul', district: 'Kadıköy', neighborhood: 'Caferağa', price: 500000 });
 
     const res = await request(app)
       .put(`${BASE_URL}/${property.id}`)
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ district: 'Beşiktaş' });
+      .send({ district: 'Beşiktaş', neighborhood: 'Abbasağa' });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

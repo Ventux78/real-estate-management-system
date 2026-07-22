@@ -89,6 +89,8 @@ model Property {
   longitude       Float?
   videoUrl        String?
   virtualTourUrl  String?
+  mapUrl          String?
+  isMapUrlManual  Boolean @default(false)
 
   // Boolean feature flags
   furnished          Boolean @default(false)

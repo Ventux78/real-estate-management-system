@@ -28,8 +28,9 @@ describe('POST /api/v1/properties', () => {
     listingType: 'FOR_SALE',
     propertyType: 'APARTMENT',
     price: 500000,
-    city: 'İstanbul',
-    district: 'Kadıköy',
+    city: 'Adana',
+    district: 'Yüreğir',
+    neighborhood: 'PTT Evleri',
     address: 'Test Sokak No:1',
   };
 

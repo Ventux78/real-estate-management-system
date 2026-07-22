@@ -20,6 +20,10 @@ describe('Images API Integration Tests', () => {
     // Generate an empty dummy image buffer
     testImageBuffer = Buffer.from('dummy image data');
 
+    // Clean up existing test data if any
+    await prisma.property.deleteMany({ where: { slug: 'image-test-property' } });
+    await prisma.user.deleteMany({ where: { username: 'image_test_user' } });
+
     // Create a user and a property for testing
     const user = await prisma.user.create({
       data: {

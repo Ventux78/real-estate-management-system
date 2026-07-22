@@ -106,29 +106,61 @@ class TestValidateCreatePropertyForm(unittest.TestCase):
         ok, errors = validate_create_property_form(
             title="Satılık Daire",
             price="1500000",
-            city="Istanbul",
-            district="Kadikoy",
+            province="Adana",
+            district="Yüreğir",
+            neighborhood="PTT Evleri",
             address="Test Adres 1",
         )
         self.assertTrue(ok)
         self.assertEqual(len(errors), 0)
 
     def test_missing_title(self):
-        ok, errors = validate_create_property_form("", "1500000", "Istanbul", "Kadikoy", "Adres")
+        ok, errors = validate_create_property_form("", "1500000", "Adana", "Yüreğir", "PTT Evleri", "Adres")
         self.assertFalse(ok)
 
     def test_invalid_price(self):
-        ok, errors = validate_create_property_form("Test", "invalid", "Istanbul", "Kadikoy", "Adres")
+        ok, errors = validate_create_property_form("Test", "invalid", "Adana", "Yüreğir", "PTT Evleri", "Adres")
         self.assertFalse(ok)
 
-    def test_missing_city(self):
-        ok, errors = validate_create_property_form("Test", "100000", "", "Kadikoy", "Adres")
+    def test_missing_province(self):
+        ok, errors = validate_create_property_form("Test", "100000", "", "Yüreğir", "PTT Evleri", "Adres")
+        self.assertFalse(ok)
+
+    def test_missing_neighborhood(self):
+        ok, errors = validate_create_property_form("Test", "100000", "Adana", "Yüreğir", "", "Adres")
         self.assertFalse(ok)
 
     def test_all_missing(self):
-        ok, errors = validate_create_property_form("", "", "", "", "")
+        ok, errors = validate_create_property_form("", "", "", "", "", "")
         self.assertFalse(ok)
-        self.assertGreaterEqual(len(errors), 4)
+        self.assertGreaterEqual(len(errors), 5)
+
+
+class TestLocationService(unittest.TestCase):
+
+    def test_provinces(self):
+        from app.services.location_service import location_service
+        provinces = location_service.get_provinces()
+        self.assertIn("Adana", provinces)
+        self.assertIn("İstanbul", provinces)
+        self.assertEqual(len(provinces), 81)
+
+    def test_districts(self):
+        from app.services.location_service import location_service
+        districts = location_service.get_districts("Adana")
+        self.assertIn("Yüreğir", districts)
+        self.assertIn("Çukurova", districts)
+
+    def test_neighborhoods(self):
+        from app.services.location_service import location_service
+        neighborhoods = location_service.get_neighborhoods("Adana", "Yüreğir")
+        self.assertIn("PTT Evleri", neighborhoods)
+
+    def test_is_valid_location(self):
+        from app.services.location_service import location_service
+        self.assertTrue(location_service.is_valid_location("Adana", "Yüreğir", "PTT Evleri"))
+        self.assertFalse(location_service.is_valid_location("Adana", "Yüreğir", "Geçersiz Mahalle"))
+
 
 
 if __name__ == "__main__":

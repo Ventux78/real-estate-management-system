@@ -13,6 +13,8 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/common/errors/AppError';
 import { propertyRepository } from './property.repository';
 import { generateUniqueSlug } from './utils/slugUtils';
+import { locationService } from './location.service';
+import { generateGoogleMapsUrl } from './utils/mapsUrl.utils';
 
 import type { Property, PropertyImage, Prisma } from '@prisma/client';
 import { HeatingType, DeedStatus } from '@prisma/client';
@@ -38,6 +40,7 @@ function mapToDto(property: Property & { images: PropertyImage[] }): PropertyDto
     propertyType: property.propertyType,
     price: Number(property.price),
     city: property.city,
+    province: property.city,
     district: property.district,
     address: property.address,
     description: property.description,
@@ -57,6 +60,8 @@ function mapToDto(property: Property & { images: PropertyImage[] }): PropertyDto
     longitude: property.longitude !== null ? Number(property.longitude) : null,
     videoUrl: property.videoUrl,
     virtualTourUrl: property.virtualTourUrl,
+    mapUrl: property.mapUrl,
+    isMapUrlManual: property.isMapUrlManual,
     furnished: property.furnished,
     balcony: property.balcony,
     elevator: property.elevator,
@@ -106,6 +111,18 @@ export const propertyService = {
       propertyRepository.findSlugsByPrefix.bind(propertyRepository),
     );
 
+    // Step 2.5 — Location hierarchy validation
+    const targetCity = dto.province || dto.city || '';
+    if (!locationService.isValidLocation(targetCity, dto.district, dto.neighborhood)) {
+      throw new AppError('Geçersiz konum hiyerarşisi: İl, İlçe ve Mahalle uyumsuz.', 422, 'INVALID_LOCATION_HIERARCHY');
+    }
+
+    // Step 2.6 — Google Maps URL calculation (Backend Single Source of Truth)
+    const isMapUrlManual = dto.isMapUrlManual ?? false;
+    const mapUrl = isMapUrlManual
+      ? (dto.mapUrl || null)
+      : generateGoogleMapsUrl(dto.address, dto.neighborhood, dto.district, targetCity);
+
     // Step 3 — persist
     const property = await propertyRepository.create({
       title: dto.title,
@@ -113,9 +130,11 @@ export const propertyService = {
       listingType: dto.listingType,
       propertyType: dto.propertyType,
       price: dto.price,
-      city: dto.city,
+      city: targetCity,
       district: dto.district,
       address: dto.address,
+      mapUrl,
+      isMapUrlManual,
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.neighborhood !== undefined && { neighborhood: dto.neighborhood }),
       ...(dto.grossArea !== undefined && { grossArea: dto.grossArea }),
@@ -195,7 +214,20 @@ export const propertyService = {
       throw new AppError('İlan bulunamadı.', 404, 'PROPERTY_NOT_FOUND');
     }
 
-    // 2. If title is being updated, generate new unique slug
+    // 2. Location hierarchy validation if location fields updated
+    const targetCity = dto.province || dto.city || existing.city;
+    const targetDistrict = dto.district || existing.district;
+    const targetNeighborhood = dto.neighborhood !== undefined ? dto.neighborhood : existing.neighborhood;
+
+    if (dto.province !== undefined || dto.city !== undefined || dto.district !== undefined || dto.neighborhood !== undefined) {
+      if (targetNeighborhood) {
+        if (!locationService.isValidLocation(targetCity, targetDistrict, targetNeighborhood)) {
+          throw new AppError('Geçersiz konum hiyerarşisi: İl, İlçe ve Mahalle uyumsuz.', 422, 'INVALID_LOCATION_HIERARCHY');
+        }
+      }
+    }
+
+    // 3. If title is being updated, generate new unique slug
     let slug: string | undefined;
     if (dto.title !== undefined) {
       slug = await generateUniqueSlug(
@@ -205,16 +237,29 @@ export const propertyService = {
       );
     }
 
-    // 3. Build update data
-    const { heatingType, deedStatus, ...restDto } = dto;
+    // 3.5. Google Maps URL calculation (Backend Single Source of Truth)
+    const isMapUrlManual = dto.isMapUrlManual !== undefined ? dto.isMapUrlManual : existing.isMapUrlManual;
+    let mapUrl: string | null;
+    if (isMapUrlManual) {
+      mapUrl = dto.mapUrl !== undefined ? dto.mapUrl : existing.mapUrl;
+    } else {
+      const targetAddress = dto.address !== undefined ? dto.address : existing.address;
+      mapUrl = generateGoogleMapsUrl(targetAddress, targetNeighborhood, targetDistrict, targetCity);
+    }
+
+    // 4. Build update data
+    const { heatingType, deedStatus, province, city, ...restDto } = dto;
     const updateData: Prisma.PropertyUpdateInput = {
       ...restDto,
+      mapUrl,
+      isMapUrlManual,
+      ...(targetCity && { city: targetCity }),
       ...(slug !== undefined && { slug }),
       ...(heatingType !== undefined && { heatingType: heatingType as HeatingType }),
       ...(deedStatus !== undefined && { deedStatus: deedStatus as DeedStatus }),
     };
 
-    // 4. Persist
+    // 5. Persist
     const updated = await propertyRepository.update(id, updateData);
 
     // 5. Log & return

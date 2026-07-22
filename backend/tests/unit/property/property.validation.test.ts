@@ -33,6 +33,7 @@ const validCreateDto = fc.record({
   price: fc.float({ min: Math.fround(0.01), max: Math.fround(1_000_000), noNaN: true }),
   city: fc.string({ minLength: 1 }),
   district: fc.string({ minLength: 1 }),
+  neighborhood: fc.string({ minLength: 1 }),
   address: fc.string({ minLength: 1 }),
 });
 
@@ -60,6 +61,7 @@ describe('Property 12: Validation Schema Completeness', () => {
       'price',
       'city',
       'district',
+      'neighborhood',
       'address',
     ] as const;
 

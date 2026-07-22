@@ -93,6 +93,8 @@ class Property:
     longitude: float | None = None
     video_url: str | None = None
     virtual_tour_url: str | None = None
+    map_url: str | None = None
+    is_map_url_manual: bool = False
     furnished: bool = False
     balcony: bool = False
     elevator: bool = False
@@ -144,6 +146,8 @@ class Property:
             longitude=data.get("longitude"),
             video_url=data.get("videoUrl"),
             virtual_tour_url=data.get("virtualTourUrl"),
+            map_url=data.get("mapUrl"),
+            is_map_url_manual=data.get("isMapUrlManual", False),
             furnished=data.get("furnished", False),
             balcony=data.get("balcony", False),
             elevator=data.get("elevator", False),
@@ -154,6 +158,11 @@ class Property:
             created_by_id=data.get("createdById", ""),
             images=[PropertyImage.from_dict(img) for img in data.get("images", [])],
         )
+
+    @property
+    def province(self) -> str:
+        """İl (province/city) alias."""
+        return self.city
 
 
 @dataclass
@@ -247,17 +256,20 @@ class CreatePropertyRequest:
     Yeni ilan oluşturma isteği.
 
     Backend: createPropertySchema (property.validation.ts)
-    Zorunlu alanlar Sprint 5 scope'undadır.
     """
 
     title: str
     listing_type: str    # 'FOR_SALE' | 'FOR_RENT'
     property_type: str   # 'APARTMENT' | 'HOUSE' | ...
     price: float
-    city: str
-    district: str
-    address: str
+    city: str            # province / il
+    district: str        # ilçe
+    neighborhood: str    # mahalle
+    address: str         # adres detayı
     description: str | None = None
+    province: str | None = None
+    map_url: str | None = None
+    is_map_url_manual: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -266,15 +278,21 @@ class CreatePropertyRequest:
         Returns:
             camelCase anahtar isimli dict (backend beklentisiyle uyumlu).
         """
+        target_province = self.province or self.city
         payload: dict[str, Any] = {
             "title": self.title,
             "listingType": self.listing_type,
             "propertyType": self.property_type,
             "price": self.price,
-            "city": self.city,
+            "city": target_province,
+            "province": target_province,
             "district": self.district,
+            "neighborhood": self.neighborhood,
             "address": self.address,
+            "mapUrl": self.map_url,
+            "isMapUrlManual": self.is_map_url_manual,
         }
         if self.description:
             payload["description"] = self.description
         return payload
+

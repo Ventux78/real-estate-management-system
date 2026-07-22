@@ -26,6 +26,7 @@ export interface PropertyDto {
   /** Prisma Decimal → number */
   price: number;
   city: string;
+  province: string;
   district: string;
   address: string;
   description: string | null;
@@ -50,6 +51,8 @@ export interface PropertyDto {
   longitude: number | null;
   videoUrl: string | null;
   virtualTourUrl: string | null;
+  mapUrl: string | null;
+  isMapUrlManual: boolean;
   furnished: boolean;
   balcony: boolean;
   elevator: boolean;

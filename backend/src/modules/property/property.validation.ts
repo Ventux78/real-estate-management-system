@@ -5,23 +5,24 @@
  */
 
 import { z } from 'zod';
+import { isValidGoogleMapsUrl } from './utils/mapsUrl.utils';
 
-// ─── CreatePropertySchema ────────────────────────────────────────────────────
-// Required: Requirements 8.1
+// ─── Base Property Schema ───────────────────────────────────────────────────
 
-export const createPropertySchema = z.object({
+const basePropertySchema = z.object({
   // Required fields
   title: z.string().min(1).max(200),
   listingType: z.enum(['FOR_SALE', 'FOR_RENT']),
   propertyType: z.enum(['APARTMENT', 'HOUSE', 'LAND', 'OFFICE', 'SHOP', 'WAREHOUSE', 'OTHER']),
   price: z.number().positive(),
-  city: z.string().min(1),
+  city: z.string().min(1).optional(),
+  province: z.string().min(1).optional(),
   district: z.string().min(1),
+  neighborhood: z.string().min(1),
   address: z.string().min(1),
 
   // Optional fields matching PropertyDto
   description: z.string().optional(),
-  neighborhood: z.string().optional(),
   grossArea: z.number().positive().optional(),
   netArea: z.number().positive().optional(),
   roomCount: z.number().int().min(0).optional(),
@@ -37,6 +38,8 @@ export const createPropertySchema = z.object({
   longitude: z.number().min(-180).max(180).optional(),
   videoUrl: z.string().url().optional(),
   virtualTourUrl: z.string().url().optional(),
+  mapUrl: z.string().nullable().optional(),
+  isMapUrlManual: z.boolean().optional(),
   furnished: z.boolean().optional(),
   balcony: z.boolean().optional(),
   elevator: z.boolean().optional(),
@@ -46,17 +49,47 @@ export const createPropertySchema = z.object({
   isFeatured: z.boolean().optional(),
 });
 
-// ─── UpdatePropertySchema ────────────────────────────────────────────────────
-// All fields partial + at least one field required — Requirements 8.2
+// ─── CreatePropertySchema ────────────────────────────────────────────────────
 
-export const updatePropertySchema = createPropertySchema
+export const createPropertySchema = basePropertySchema
+  .refine((data) => !!(data.city || data.province), {
+    message: 'İl (city veya province) alanı zorunludur.',
+    path: ['city'],
+  })
+  .refine(
+    (data) => {
+      if (data.isMapUrlManual) {
+        return !!data.mapUrl && isValidGoogleMapsUrl(data.mapUrl);
+      }
+      return true;
+    },
+    {
+      message: 'Manuel modda geçerli bir Google Maps bağlantısı girilmesi zorunludur.',
+      path: ['mapUrl'],
+    },
+  );
+
+// ─── UpdatePropertySchema ────────────────────────────────────────────────────
+
+export const updatePropertySchema = basePropertySchema
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'En az bir alan güncellenmeli.',
-  });
+  })
+  .refine(
+    (data) => {
+      if (data.isMapUrlManual) {
+        return !!data.mapUrl && isValidGoogleMapsUrl(data.mapUrl);
+      }
+      return true;
+    },
+    {
+      message: 'Manuel modda geçerli bir Google Maps bağlantısı girilmesi zorunludur.',
+      path: ['mapUrl'],
+    },
+  );
 
 // ─── PaginationSchema ────────────────────────────────────────────────────────
-// Pagination + filter fields with defaults — Requirements 8.3
 
 export const paginationSchema = z
   .object({
@@ -81,7 +114,6 @@ export const paginationSchema = z
   );
 
 // ─── IdParamSchema ───────────────────────────────────────────────────────────
-// RFC 4122 UUID validation — Requirements 8.4
 
 export const idParamSchema = z.object({
   id: z.string().uuid('Geçerli bir UUID giriniz.'),

@@ -107,22 +107,50 @@ def validate_login_form(
     return len(errors) == 0, errors
 
 
+from app.services.maps_url_service import maps_url_service
+
+
+def validate_maps_url(url: str, is_manual: bool) -> tuple[bool, str]:
+    """
+    Google Maps URL'sini doğrular.
+
+    Args:
+        url: URL string.
+        is_manual: Manuel mod aktif mi?
+
+    Returns:
+        (is_valid, error_message)
+    """
+    if is_manual:
+        if not url or not url.strip():
+            return False, "Manuel modda Google Maps URL alanı boş bırakılamaz."
+        if not maps_url_service.is_valid_url(url):
+            return False, "Geçersiz Google Maps bağlantısı. Kabul edilen formatlar: google.com, maps.google.com, maps.app.goo.gl, goo.gl/maps"
+    return True, ""
+
+
 def validate_create_property_form(
     title: str,
     price: str,
-    city: str,
+    province: str,
     district: str,
+    neighborhood: str,
     address: str,
+    map_url: str = "",
+    is_map_manual: bool = False,
 ) -> tuple[bool, list[str]]:
     """
-    Yeni ilan formunu doğrular.
+    İlan oluşturma/düzenleme formunu doğrular.
 
     Args:
         title: İlan başlığı.
         price: Fiyat (string olarak gelir).
-        city: Şehir.
+        province: İl.
         district: İlçe.
-        address: Adres.
+        neighborhood: Mahalle.
+        address: Adres Detayı.
+        map_url: Google Maps URL'si.
+        is_map_manual: Manuel mod seçili mi?
 
     Returns:
         (is_valid, errors_list)
@@ -137,7 +165,7 @@ def validate_create_property_form(
     if not ok:
         errors.append(msg)
 
-    ok, msg = validate_required(city, "Şehir")
+    ok, msg = validate_required(province, "İl")
     if not ok:
         errors.append(msg)
 
@@ -145,8 +173,18 @@ def validate_create_property_form(
     if not ok:
         errors.append(msg)
 
-    ok, msg = validate_required(address, "Adres")
+    ok, msg = validate_required(neighborhood, "Mahalle")
+    if not ok:
+        errors.append(msg)
+
+    # Note: Address detail is optional for map URL, but required for property location
+    ok, msg = validate_required(address, "Adres Detayı")
+    if not ok:
+        errors.append(msg)
+
+    ok, msg = validate_maps_url(map_url, is_map_manual)
     if not ok:
         errors.append(msg)
 
     return len(errors) == 0, errors
+
