@@ -257,6 +257,35 @@ class PropertyDetailDialog(QDialog):
                 
         layout.addLayout(features_layout)
 
+        # ── 6. SOSYAL DONATILAR ────────────────────────────────────────────────
+        if self.property.social_amenities:
+            self._add_section_title(layout, "SOSYAL DONATILAR")
+            sa_layout = QGridLayout()
+            sa_layout.setSpacing(10)
+            sa_row = 0
+            sa_col = 0
+            for amenity in self.property.social_amenities:
+                lbl_symbol = QLabel("•")
+                lbl_symbol.setStyleSheet(f"color: #3b82f6; font-weight: bold; font-size: {FontSizes.MEDIUM}pt;")
+                lbl_text = QLabel(amenity)
+                lbl_text.setStyleSheet(f"color: {Colors.TEXT_PRIMARY}; font-size: {FontSizes.NORMAL}pt;")
+
+                item_widget = QWidget()
+                item_layout = QHBoxLayout(item_widget)
+                item_layout.setContentsMargins(0, 0, 0, 0)
+                item_layout.setSpacing(8)
+                item_layout.addWidget(lbl_symbol)
+                item_layout.addWidget(lbl_text)
+                item_layout.addStretch()
+
+                sa_layout.addWidget(item_widget, sa_row, sa_col)
+                sa_col += 1
+                if sa_col > 1:
+                    sa_col = 0
+                    sa_row += 1
+
+            layout.addLayout(sa_layout)
+
         layout.addStretch()
         scroll.setWidget(container)
         main_layout.addWidget(scroll)

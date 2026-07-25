@@ -55,6 +55,7 @@ export interface PropertyDto {
   wcType: 'ALAFRANGA' | 'ALATURKA' | 'BOTH' | null;
   inComplex: boolean;
   complexName: string | null;
+  socialAmenities: string[];
   latitude: number | null;
   longitude: number | null;
   videoUrl: string | null;

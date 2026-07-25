@@ -169,6 +169,20 @@ export default async function PropertyDetailPage({
                 ) : null;
               })()}
 
+              {property.socialAmenities && property.socialAmenities.length > 0 && (
+                <section>
+                  <h2 className="text-2xl font-bold text-white mb-4">Sosyal Donatılar</h2>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {property.socialAmenities.map((amenity: string, idx: number) => (
+                      <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-[#333333]">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 mr-3" />
+                        {amenity}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {/* Konum & Harita Bilgisi */}
               <section className="bg-[#18181B] border border-[#27272A] rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">

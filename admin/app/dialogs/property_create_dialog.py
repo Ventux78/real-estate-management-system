@@ -367,6 +367,16 @@ class PropertyCreateDialog(QDialog):
         grid.addWidget(self._exchange_available_check, 2, 1)
 
         layout.addLayout(grid)
+
+        self._add_section_title(layout, "SOSYAL DONATILAR (OPSİYONEL)")
+        lbl_sa_info = QLabel("İlana eklemek istediğiniz sosyal donatıları her satıra bir tane gelecek şekilde girin.")
+        lbl_sa_info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {FontSizes.SMALL}pt;")
+        layout.addWidget(lbl_sa_info)
+
+        self._social_amenities_input = StyledTextEdit(placeholder="Her satıra bir donatı yazın:\nÖrn:\nYüzme Havuzu\nSauna\nFitness / Spor Salonu\n7/24 Güvenlik")
+        self._social_amenities_input.setFixedHeight(120)
+        layout.addWidget(self._social_amenities_input)
+
         layout.addStretch()
         self.tabs.addTab(tab, "✔ Özellikler")
 
@@ -647,6 +657,10 @@ class PropertyCreateDialog(QDialog):
         exchange_available = self._exchange_available_check.isChecked()
         is_featured = self._is_featured_check.isChecked()
 
+        social_amenities = [
+            line.strip() for line in self._social_amenities_input.toPlainText().splitlines() if line.strip()
+        ]
+
         # Temel Bilgiler Validasyonu
         is_valid, errors = validate_create_property_form(
             title, price_str, province, district, neighborhood, address, map_url, is_map_manual
@@ -688,6 +702,7 @@ class PropertyCreateDialog(QDialog):
                 deed_status=deed_status,
                 in_complex=in_complex,
                 complex_name=complex_name,
+                social_amenities=social_amenities,
                 furnished=furnished,
                 balcony=balcony,
                 elevator=elevator,

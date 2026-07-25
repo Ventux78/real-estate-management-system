@@ -51,6 +51,7 @@ export interface Property {
   wcType?: 'ALAFRANGA' | 'ALATURKA' | 'BOTH' | null;
   inComplex?: boolean;
   complexName?: string | null;
+  socialAmenities?: string[];
   mapUrl?: string | null;
   isMapUrlManual?: boolean;
   images: PropertyImage[];

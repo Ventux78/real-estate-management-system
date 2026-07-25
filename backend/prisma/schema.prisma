@@ -102,6 +102,7 @@ model Property {
   wcType          WcType?
   inComplex       Boolean @default(false)
   complexName     String?
+  socialAmenities String[] @default([])
   latitude        Float?
   longitude       Float?
   videoUrl        String?

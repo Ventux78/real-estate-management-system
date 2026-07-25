@@ -95,6 +95,7 @@ class Property:
     wc_type: str | None = None
     in_complex: bool = False
     complex_name: str | None = None
+    social_amenities: list[str] = field(default_factory=list)
     latitude: float | None = None
     longitude: float | None = None
     video_url: str | None = None
@@ -154,6 +155,7 @@ class Property:
             wc_type=data.get("wcType"),
             in_complex=data.get("inComplex", False),
             complex_name=data.get("complexName"),
+            social_amenities=data.get("socialAmenities", []),
             latitude=data.get("latitude"),
             longitude=data.get("longitude"),
             video_url=data.get("videoUrl"),
@@ -299,6 +301,7 @@ class CreatePropertyRequest:
     wc_type: str | None = None
     in_complex: bool = False
     complex_name: str | None = None
+    social_amenities: list[str] = field(default_factory=list)
     video_url: str | None = None
     virtual_tour_url: str | None = None
     furnished: bool = False
@@ -337,6 +340,7 @@ class CreatePropertyRequest:
             "exchangeAvailable": self.exchange_available,
             "isFeatured": self.is_featured,
             "inComplex": self.in_complex,
+            "socialAmenities": self.social_amenities,
         }
         if self.complex_name:
             payload["complexName"] = self.complex_name

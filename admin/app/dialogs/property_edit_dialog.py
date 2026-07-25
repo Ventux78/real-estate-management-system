@@ -447,6 +447,16 @@ class PropertyEditDialog(QDialog):
         grid.addWidget(self._exchange_available_check, 2, 1)
 
         layout.addLayout(grid)
+
+        self._add_section_title(layout, "SOSYAL DONATILAR (OPSİYONEL)")
+        lbl_sa_info = QLabel("İlana eklemek istediğiniz sosyal donatıları her satıra bir tane gelecek şekilde girin.")
+        lbl_sa_info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {FontSizes.SMALL}pt;")
+        layout.addWidget(lbl_sa_info)
+
+        self._social_amenities_input = StyledTextEdit(placeholder="Her satıra bir donatı yazın:\nÖrn:\nYüzme Havuzu\nSauna\nFitness / Spor Salonu\n7/24 Güvenlik")
+        self._social_amenities_input.setFixedHeight(120)
+        layout.addWidget(self._social_amenities_input)
+
         layout.addStretch()
         self.tabs.addTab(tab, "✔ Özellikler")
 
@@ -644,6 +654,9 @@ class PropertyEditDialog(QDialog):
         self._eligible_for_credit_check.setChecked(self.property.eligible_for_credit)
         self._exchange_available_check.setChecked(self.property.exchange_available)
         self._is_featured_check.setChecked(self.property.is_featured)
+
+        if self.property.social_amenities:
+            self._social_amenities_input.setPlainText("\n".join(self.property.social_amenities))
 
         # 4. Konum & Harita Yükle
         current_province = self.property.province or self.property.city
@@ -876,6 +889,10 @@ class PropertyEditDialog(QDialog):
         exchange_available = self._exchange_available_check.isChecked()
         is_featured = self._is_featured_check.isChecked()
 
+        social_amenities = [
+            line.strip() for line in self._social_amenities_input.toPlainText().splitlines() if line.strip()
+        ]
+
         is_valid, errors = validate_create_property_form(
             title, price_str, province, district, neighborhood, address, map_url, is_map_manual
         )
@@ -918,6 +935,7 @@ class PropertyEditDialog(QDialog):
                 "deedStatus": deed_status,
                 "inComplex": in_complex,
                 "complexName": complex_name,
+                "socialAmenities": social_amenities,
                 "furnished": furnished,
                 "balcony": balcony,
                 "elevator": elevator,
