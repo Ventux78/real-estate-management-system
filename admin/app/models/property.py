@@ -208,7 +208,7 @@ class PropertyImage:
     def from_dict(cls, data: dict[str, Any]) -> "PropertyImage":
         return cls(
             id=data.get("id", ""),
-            url=data.get("url", ""),
+            url=data.get("imageUrl", data.get("url", "")),
             public_id=data.get("publicId", ""),
             width=data.get("width", 0),
             height=data.get("height", 0),

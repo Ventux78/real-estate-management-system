@@ -20,6 +20,7 @@ Mimari içindeki görevi:
 """
 
 import logging
+import mimetypes
 from typing import Optional, Any
 
 from app.api.client import api_client
@@ -267,7 +268,17 @@ class PropertyService:
             for path in file_paths:
                 f = open(path, "rb")
                 file_objs.append(f)
-                files.append(("images", (os.path.basename(path), f, "image/jpeg")))
+                mime_type, _ = mimetypes.guess_type(path)
+                if not mime_type:
+                    _, extension = os.path.splitext(path)
+                    extension = extension.lower()
+                    mime_type = {
+                        ".jpg": "image/jpeg",
+                        ".jpeg": "image/jpeg",
+                        ".png": "image/png",
+                        ".webp": "image/webp",
+                    }.get(extension, "application/octet-stream")
+                files.append(("images", (os.path.basename(path), f, mime_type)))
 
             raw = api_client.post(Endpoints.property_images(property_id), files=files)
             if isinstance(raw, dict) and "data" in raw:

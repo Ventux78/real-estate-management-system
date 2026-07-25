@@ -21,6 +21,7 @@ Mimari içindeki görevi:
 
 import json
 import logging
+import threading
 from typing import Any
 
 import requests
@@ -70,23 +71,17 @@ class ApiClient:
         self._base_url: str = settings.api_url
         self._timeout: int = settings.api_timeout
         self._token: str | None = None
-        self._session: Session = requests.Session()
-
-        # Retry mechanism for 500, 502, 503, 504 errors
-        retry_strategy = Retry(
+        self._thread_local = threading.local()
+        self._default_headers = {
+            "Accept": "application/json",
+        }
+        self._retry_strategy = Retry(
             total=3,
             backoff_factor=0.3,
             status_forcelist=[500, 502, 503, 504],
-            allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+            allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
-
-        self._session.headers.update({
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        })
+        self._adapter = HTTPAdapter(max_retries=self._retry_strategy)
 
     # ─── Token Yönetimi ─────────────────────────────────────────────────────
 
@@ -98,13 +93,15 @@ class ApiClient:
             token: JWT Access Token string'i.
         """
         self._token = token
-        self._session.headers.update({"Authorization": f"Bearer {token}"})
+        if hasattr(self._thread_local, "session"):
+            self._thread_local.session.headers.update({"Authorization": f"Bearer {token}"})
         logger.debug("ApiClient: Token ayarlandı.")
 
     def clear_token(self) -> None:
         """Token'ı bellekten siler (logout)."""
         self._token = None
-        self._session.headers.pop("Authorization", None)
+        if hasattr(self._thread_local, "session"):
+            self._thread_local.session.headers.pop("Authorization", None)
         logger.debug("ApiClient: Token temizlendi.")
 
     @property
@@ -114,22 +111,43 @@ class ApiClient:
 
     # ─── HTTP Metodları ─────────────────────────────────────────────────────
 
+    def _get_session(self) -> Session:
+        if not hasattr(self._thread_local, "session"):
+            session = requests.Session()
+            session.mount("http://", self._adapter)
+            session.mount("https://", self._adapter)
+            session.headers.update(self._default_headers)
+            self._thread_local.session = session
+        return self._thread_local.session
+
     def _request(
         self, method: str, endpoint: str, **kwargs: Any
     ) -> Any:
         url = self._build_url(endpoint)
-        request_headers = {**self._session.headers, **(kwargs.get("headers") or {})}
+        session = self._get_session()
+        request_headers = {**session.headers, **(kwargs.get("headers") or {})}
         request_payload = kwargs.get("json") or kwargs.get("data")
         files = kwargs.get("files")
+
+        if self._token:
+            request_headers["Authorization"] = f"Bearer {self._token}"
+        else:
+            request_headers.pop("Authorization", None)
 
         if files is not None:
             request_headers.pop("Content-Type", None)
             kwargs["headers"] = request_headers
+            content_type_display = "multipart/form-data (auto)"
         else:
+            request_headers["Content-Type"] = "application/json"
             kwargs["headers"] = request_headers
+            content_type_display = request_headers.get("Content-Type")
 
         logger.debug("=== API Request ===")
-        logger.debug("%s URL: %s", method.upper(), url)
+        logger.debug("Endpoint: %s", endpoint)
+        logger.debug("Method: %s", method.upper())
+        logger.debug("URL: %s", url)
+        logger.debug("Content-Type: %s", content_type_display)
         logger.debug("Headers:\n%s", self._format_headers(request_headers))
         logger.debug("Request Payload (JSON):\n%s", self._pretty_json(request_payload))
         if files is not None:
@@ -137,7 +155,7 @@ class ApiClient:
         logger.debug("Timeout: %s", self._timeout)
 
         try:
-            response = self._session.request(method, url, timeout=self._timeout, **kwargs)
+            response = session.request(method, url, timeout=self._timeout, **kwargs)
             return self._handle_response(response)
         except ApiException:
             raise
@@ -225,6 +243,10 @@ class ApiClient:
         """
         logger.debug("=== API Response ===")
         logger.debug("HTTP Status: %s", response.status_code)
+        try:
+            logger.debug("Request Headers Sent:\n%s", self._format_headers(response.request.headers))
+        except Exception:
+            logger.debug("Request Headers Sent: <unable to read>")
         logger.debug("Response Headers:\n%s", self._format_headers(response.headers))
         logger.debug("Response Body:\n%s", response.text if response.text else "<empty>")
 

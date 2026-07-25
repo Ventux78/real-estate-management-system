@@ -166,7 +166,7 @@ Uygulama dili: **TypeScript**. Proje dizini: `C:\Users\murat\OneDrive\Desktop\ga
     - `semi: true`, `singleQuote: true`, `trailingComma: "all"`, `printWidth: 100`, `tabWidth: 2`
     - _Requirements: 3.1_
 
-- [x] 13. Son doğrulama checkpoint'i
+- [-] 13. Son doğrulama checkpoint'i
   - `npm run build` hatasız tamamlanıyor mu? (`dist/` klasörü oluşuyor mu?)
   - `npm run type-check` TypeScript hatası yok mu?
   - `npm run lint` uyarı yok mu?

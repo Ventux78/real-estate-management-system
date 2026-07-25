@@ -57,6 +57,23 @@ export default async function PropertyDetailPage({
     OTHER: 'Diğer',
   };
 
+  const heatingMap: Record<string, string> = {
+    NATURAL_GAS: 'Doğalgaz (Kombi)',
+    ELECTRIC: 'Elektrikli',
+    FLOOR_HEATING: 'Yerden Isıtma',
+    COAL: 'Soba / Kömür',
+    NONE: 'Yok',
+    OTHER: 'Diğer',
+  };
+
+  const deedMap: Record<string, string> = {
+    FREEHOLD: 'Kat İrtifakı',
+    CONDOMINIUM: 'Kat Mülkiyeti',
+    FLOOR_EASEMENT: 'Kat İrtifakı',
+    SHARED: 'Hisseli Tapu',
+    OTHER: 'Diğer',
+  };
+
   const formattedDate = new Date(property.createdAt).toLocaleDateString('tr-TR', {
     year: 'numeric',
     month: 'long',
@@ -119,11 +136,13 @@ export default async function PropertyDetailPage({
                 if (property.furnished) features.push('Eşyalı');
                 if (property.balcony) features.push('Balkon');
                 if (property.elevator) features.push('Asansör');
-                if (property.parking) features.push('Otopark');
+                if (property.parking) features.push('Otopark / Garaj');
+                if (property.eligibleForCredit) features.push('Krediye Uygun');
+                if (property.exchangeAvailable) features.push('Takas Yapılabilir');
                 return features.length > 0 ? (
                   <section>
                     <h2 className="text-2xl font-bold text-white mb-4">Özellikler</h2>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {features.map((feature: string, idx: number) => (
                         <li key={idx} className="flex items-center text-[#A1A1AA] bg-[#121212] px-4 py-2 rounded-lg border border-[#333333]">
                           <span className="w-2 h-2 rounded-full bg-brand-400 mr-3" />
@@ -191,6 +210,16 @@ export default async function PropertyDetailPage({
                       </span>
                     </div>
                   )}
+
+                  {property.bathroomCount !== null && property.bathroomCount !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <Bath className="w-5 h-5 mr-3" />
+                        <span>Banyo Sayısı</span>
+                      </div>
+                      <span className="font-medium text-white">{property.bathroomCount}</span>
+                    </div>
+                  )}
                   
                   <div className="flex justify-between items-center">
                     <div className="flex items-center text-[#A1A1AA]">
@@ -201,6 +230,55 @@ export default async function PropertyDetailPage({
                       {property.grossArea ?? '-'} / {property.netArea ?? '-'} m²
                     </span>
                   </div>
+
+                  {property.floor !== null && property.floor !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <Home className="w-5 h-5 mr-3" />
+                        <span>Bulunduğu Kat</span>
+                      </div>
+                      <span className="font-medium text-white">
+                        {property.floor}. Kat {property.totalFloor ? `(Toplam ${property.totalFloor})` : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {property.buildingAge !== null && property.buildingAge !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <Ruler className="w-5 h-5 mr-3" />
+                        <span>Bina Yaşı</span>
+                      </div>
+                      <span className="font-medium text-white">{property.buildingAge} Yıl</span>
+                    </div>
+                  )}
+
+                  {property.heatingType && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Isınma Tipi</span>
+                      </div>
+                      <span className="font-medium text-white">{heatingMap[property.heatingType] || property.heatingType}</span>
+                    </div>
+                  )}
+
+                  {property.deedStatus && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Tapu Durumu</span>
+                      </div>
+                      <span className="font-medium text-white">{deedMap[property.deedStatus] || property.deedStatus}</span>
+                    </div>
+                  )}
+
+                  {property.dues !== null && property.dues !== undefined && property.dues > 0 && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Aidat</span>
+                      </div>
+                      <span className="font-medium text-white">{formatCurrency(property.dues)}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between items-center">
                     <div className="flex items-center text-[#A1A1AA]">

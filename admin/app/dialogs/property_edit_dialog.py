@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QThread, QObject, QSize, QUrl
 from PySide6.QtGui import QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+import requests
 
 from app.services.property_service import property_service
 from app.services.location_service import location_service
@@ -156,7 +157,39 @@ class ImageItemWidget(QWidget):
             pixmap.loadFromData(data)
             self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
         else:
+            # Show error and help diagnose by exposing URL and network error
+            err_str = self.reply.errorString()
+            url_str = self.image.url or "<no url>"
             self.image_label.setText("Hata")
+            # Tooltip shows url and network error for quick inspection
+            try:
+                self.image_label.setToolTip(f"URL: {url_str}\nError: {err_str}")
+            except Exception:
+                pass
+            # Append URL info to details label so user can see it in UI
+            try:
+                current = self.info_label.text()
+                self.info_label.setText(current + f"<br/><small>URL: {url_str}</small>")
+            except Exception:
+                pass
+            # Fallback: try to fetch image using requests (helps when Qt network fails)
+            try:
+                resp = requests.get(url_str, timeout=10)
+                if resp.status_code == 200 and resp.content:
+                    pixmap = QPixmap()
+                    if pixmap.loadFromData(resp.content):
+                        self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+                        # clear tooltip since loaded successfully
+                        try:
+                            self.image_label.setToolTip("")
+                        except Exception:
+                            pass
+                else:
+                    # leave error state
+                    pass
+            except Exception:
+                # network fallback failed; nothing more to do here
+                pass
         self.reply.deleteLater()
 
 
@@ -884,7 +917,7 @@ class PropertyEditDialog(QDialog):
         self.upload_btn.setEnabled(False)
         self.progress_bar.show()
         
-        self.upload_thread = QThread()
+        self.upload_thread = QThread(self)
         self.upload_worker = ImageUploadWorker(self.property.id, file_paths)
         self.upload_worker.moveToThread(self.upload_thread)
         
@@ -893,6 +926,8 @@ class PropertyEditDialog(QDialog):
         self.upload_worker.error.connect(self._on_upload_error)
         self.upload_worker.finished.connect(self.upload_thread.quit)
         self.upload_worker.error.connect(self.upload_thread.quit)
+        self.upload_thread.finished.connect(self.upload_thread.deleteLater)
+        self.upload_thread.finished.connect(self.upload_worker.deleteLater)
         
         self.upload_thread.start()
 
@@ -911,6 +946,12 @@ class PropertyEditDialog(QDialog):
         self.progress_bar.hide()
         self.upload_thread = None
         self.upload_worker = None
+
+    def closeEvent(self, event) -> None:
+        if self.upload_thread and self.upload_thread.isRunning():
+            self.upload_thread.quit()
+            self.upload_thread.wait(2000)
+        super().closeEvent(event)
 
     def _on_delete_image(self, image_id: str) -> None:
         reply = QMessageBox.question(self, "Onay", "Bu resmi silmek istediğinize emin misiniz?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
