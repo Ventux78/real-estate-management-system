@@ -56,6 +56,12 @@ function mapToDto(property: Property & { images: PropertyImage[] }): PropertyDto
     heatingType: property.heatingType,
     dues: property.dues !== null ? Number(property.dues) : null,
     deedStatus: property.deedStatus,
+    kitchenType: property.kitchenType,
+    extraRoom: property.extraRoom,
+    unitsPerFloor: property.unitsPerFloor,
+    wcType: property.wcType,
+    inComplex: property.inComplex,
+    complexName: property.complexName,
     latitude: property.latitude !== null ? Number(property.latitude) : null,
     longitude: property.longitude !== null ? Number(property.longitude) : null,
     videoUrl: property.videoUrl,
@@ -148,6 +154,12 @@ export const propertyService = {
       ...(dto.heatingType !== undefined && { heatingType: dto.heatingType as import('@prisma/client').HeatingType }),
       ...(dto.dues !== undefined && { dues: dto.dues }),
       ...(dto.deedStatus !== undefined && { deedStatus: dto.deedStatus as import('@prisma/client').DeedStatus }),
+      ...(dto.kitchenType !== undefined && { kitchenType: dto.kitchenType as import('@prisma/client').KitchenType }),
+      ...(dto.extraRoom !== undefined && { extraRoom: dto.extraRoom }),
+      ...(dto.unitsPerFloor !== undefined && { unitsPerFloor: dto.unitsPerFloor }),
+      ...(dto.wcType !== undefined && { wcType: dto.wcType as import('@prisma/client').WcType }),
+      ...(dto.inComplex !== undefined && { inComplex: dto.inComplex }),
+      ...(dto.complexName !== undefined && { complexName: dto.complexName }),
       ...(dto.latitude !== undefined && { latitude: dto.latitude }),
       ...(dto.longitude !== undefined && { longitude: dto.longitude }),
       ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),
@@ -248,7 +260,7 @@ export const propertyService = {
     }
 
     // 4. Build update data
-    const { heatingType, deedStatus, province, city, ...restDto } = dto;
+    const { heatingType, deedStatus, kitchenType, wcType, province, city, ...restDto } = dto;
     const updateData: Prisma.PropertyUpdateInput = {
       ...restDto,
       mapUrl,
@@ -257,6 +269,8 @@ export const propertyService = {
       ...(slug !== undefined && { slug }),
       ...(heatingType !== undefined && { heatingType: heatingType as HeatingType }),
       ...(deedStatus !== undefined && { deedStatus: deedStatus as DeedStatus }),
+      ...(kitchenType !== undefined && { kitchenType: kitchenType as import('@prisma/client').KitchenType }),
+      ...(wcType !== undefined && { wcType: wcType as import('@prisma/client').WcType }),
     };
 
     // 5. Persist

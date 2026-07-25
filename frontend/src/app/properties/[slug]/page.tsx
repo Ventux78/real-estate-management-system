@@ -74,6 +74,17 @@ export default async function PropertyDetailPage({
     OTHER: 'Diğer',
   };
 
+  const kitchenMap: Record<string, string> = {
+    OPEN: 'Açık Mutfak (Amerikan)',
+    CLOSED: 'Kapalı Mutfak',
+  };
+
+  const wcMap: Record<string, string> = {
+    ALAFRANGA: 'Alafranga (Klozet)',
+    ALATURKA: 'Alaturka',
+    BOTH: 'Her İkisi (Alafranga + Alaturka)',
+  };
+
   const formattedDate = new Date(property.createdAt).toLocaleDateString('tr-TR', {
     year: 'numeric',
     month: 'long',
@@ -139,6 +150,10 @@ export default async function PropertyDetailPage({
                 if (property.parking) features.push('Otopark / Garaj');
                 if (property.eligibleForCredit) features.push('Krediye Uygun');
                 if (property.exchangeAvailable) features.push('Takas Yapılabilir');
+                if (property.kitchenType) features.push(kitchenMap[property.kitchenType] || property.kitchenType);
+                if (property.extraRoom) features.push(`Ek Oda (${property.extraRoom})`);
+                if (property.wcType) features.push(`WC: ${wcMap[property.wcType] || property.wcType}`);
+                if (property.inComplex) features.push(property.complexName ? `Site İçi (${property.complexName})` : 'Site İçerisinde');
                 return features.length > 0 ? (
                   <section>
                     <h2 className="text-2xl font-bold text-white mb-4">Özellikler</h2>
@@ -211,6 +226,15 @@ export default async function PropertyDetailPage({
                     </div>
                   )}
 
+                  {property.extraRoom && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Ek Oda Bilgisi</span>
+                      </div>
+                      <span className="font-medium text-white">{property.extraRoom}</span>
+                    </div>
+                  )}
+
                   {property.bathroomCount !== null && property.bathroomCount !== undefined && (
                     <div className="flex justify-between items-center">
                       <div className="flex items-center text-[#A1A1AA]">
@@ -218,6 +242,15 @@ export default async function PropertyDetailPage({
                         <span>Banyo Sayısı</span>
                       </div>
                       <span className="font-medium text-white">{property.bathroomCount}</span>
+                    </div>
+                  )}
+
+                  {property.wcType && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>WC Tipi</span>
+                      </div>
+                      <span className="font-medium text-white">{wcMap[property.wcType] || property.wcType}</span>
                     </div>
                   )}
                   
@@ -243,6 +276,15 @@ export default async function PropertyDetailPage({
                     </div>
                   )}
 
+                  {property.unitsPerFloor !== null && property.unitsPerFloor !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Kat Başına Daire</span>
+                      </div>
+                      <span className="font-medium text-white">{property.unitsPerFloor} Daire</span>
+                    </div>
+                  )}
+
                   {property.buildingAge !== null && property.buildingAge !== undefined && (
                     <div className="flex justify-between items-center">
                       <div className="flex items-center text-[#A1A1AA]">
@@ -250,6 +292,15 @@ export default async function PropertyDetailPage({
                         <span>Bina Yaşı</span>
                       </div>
                       <span className="font-medium text-white">{property.buildingAge} Yıl</span>
+                    </div>
+                  )}
+
+                  {property.kitchenType && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Mutfak Tipi</span>
+                      </div>
+                      <span className="font-medium text-white">{kitchenMap[property.kitchenType] || property.kitchenType}</span>
                     </div>
                   )}
 
@@ -268,6 +319,15 @@ export default async function PropertyDetailPage({
                         <span>Tapu Durumu</span>
                       </div>
                       <span className="font-medium text-white">{deedMap[property.deedStatus] || property.deedStatus}</span>
+                    </div>
+                  )}
+
+                  {property.inComplex && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-[#A1A1AA]">
+                        <span>Site Bilgisi</span>
+                      </div>
+                      <span className="font-medium text-white">{property.complexName ? `Site İçi (${property.complexName})` : 'Site İçerisinde'}</span>
                     </div>
                   )}
 

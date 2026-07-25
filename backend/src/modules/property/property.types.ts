@@ -47,6 +47,14 @@ export interface PropertyDto {
   dues: number | null;
   /** DeedStatus enum */
   deedStatus: 'FREEHOLD' | 'CONDOMINIUM' | 'FLOOR_EASEMENT' | 'SHARED' | 'OTHER' | null;
+  /** KitchenType enum */
+  kitchenType: 'OPEN' | 'CLOSED' | null;
+  extraRoom: string | null;
+  unitsPerFloor: number | null;
+  /** WcType enum */
+  wcType: 'ALAFRANGA' | 'ALATURKA' | 'BOTH' | null;
+  inComplex: boolean;
+  complexName: string | null;
   latitude: number | null;
   longitude: number | null;
   videoUrl: string | null;

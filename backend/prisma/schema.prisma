@@ -44,6 +44,17 @@ enum DeedStatus {
   OTHER
 }
 
+enum KitchenType {
+  OPEN
+  CLOSED
+}
+
+enum WcType {
+  ALAFRANGA
+  ALATURKA
+  BOTH
+}
+
 model User {
   id           String     @id @default(uuid())
   username     String     @unique @db.VarChar(50)
@@ -85,6 +96,12 @@ model Property {
   heatingType     HeatingType?
   dues            Decimal?
   deedStatus      DeedStatus?
+  kitchenType     KitchenType?
+  extraRoom       String?
+  unitsPerFloor   Int?
+  wcType          WcType?
+  inComplex       Boolean @default(false)
+  complexName     String?
   latitude        Float?
   longitude       Float?
   videoUrl        String?

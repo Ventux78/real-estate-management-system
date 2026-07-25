@@ -45,6 +45,12 @@ export interface Property {
   parking: boolean;
   eligibleForCredit?: boolean;
   exchangeAvailable?: boolean;
+  kitchenType?: 'OPEN' | 'CLOSED' | null;
+  extraRoom?: string | null;
+  unitsPerFloor?: number | null;
+  wcType?: 'ALAFRANGA' | 'ALATURKA' | 'BOTH' | null;
+  inComplex?: boolean;
+  complexName?: string | null;
   mapUrl?: string | null;
   isMapUrlManual?: boolean;
   images: PropertyImage[];

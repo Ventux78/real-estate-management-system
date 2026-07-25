@@ -190,6 +190,28 @@ class PropertyDetailDialog(QDialog):
         }
         deed_val = deed_map.get(self.property.deed_status, self.property.deed_status) if self.property.deed_status else "—"
         self._add_grid_row(details_grid, 5, 0, "Tapu Durumu:", deed_val)
+
+        # Mutfak Tipi
+        kitchen_map = {"OPEN": "Açık Mutfak (Amerikan)", "CLOSED": "Kapalı Mutfak"}
+        kitchen_val = kitchen_map.get(self.property.kitchen_type, "—") if self.property.kitchen_type else "—"
+        self._add_grid_row(details_grid, 5, 1, "Mutfak Tipi:", kitchen_val)
+
+        # Ek Oda
+        extra_room_val = self.property.extra_room if self.property.extra_room else "Yok"
+        self._add_grid_row(details_grid, 6, 0, "Ek Oda:", extra_room_val)
+
+        # Kat Başına Daire
+        units_per_floor_val = f"{self.property.units_per_floor} Daire" if self.property.units_per_floor is not None else "—"
+        self._add_grid_row(details_grid, 6, 1, "Kat Başı Daire:", units_per_floor_val)
+
+        # WC Tipi
+        wc_map = {"ALAFRANGA": "Alafranga (Klozet)", "ALATURKA": "Alaturka", "BOTH": "Her İkisi (Alafranga + Alaturka)"}
+        wc_val = wc_map.get(self.property.wc_type, "—") if self.property.wc_type else "—"
+        self._add_grid_row(details_grid, 7, 0, "WC Tipi:", wc_val)
+
+        # Site Bilgisi
+        site_val = f"Site İçi ({self.property.complex_name})" if (self.property.in_complex and self.property.complex_name) else ("Site İçi" if self.property.in_complex else "Site Dışı / Müstakil")
+        self._add_grid_row(details_grid, 7, 1, "Site Bilgisi:", site_val)
         
         layout.addLayout(details_grid)
 

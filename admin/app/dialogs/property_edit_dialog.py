@@ -346,9 +346,28 @@ class PropertyEditDialog(QDialog):
         self._building_age_input = StyledLineEdit(placeholder="Örn: 5")
         self._add_grid_form_row(grid, 2, 1, "Bina Yaşı", self._building_age_input)
 
+        self._units_per_floor_input = StyledLineEdit(placeholder="Örn: 2 veya 4")
+        self._add_grid_form_row(grid, 3, 0, "Kat Başına Daire", self._units_per_floor_input)
+
         layout.addLayout(grid)
 
         self._add_section_title(layout, "DİĞER BİLGİLER")
+        self._kitchen_type_combo = StyledComboBox()
+        self._kitchen_type_combo.addItem("-- Seçiniz --", "")
+        self._kitchen_type_combo.addItem("Açık Mutfak (Amerikan)", "OPEN")
+        self._kitchen_type_combo.addItem("Kapalı Mutfak", "CLOSED")
+        self._add_form_row(layout, "Mutfak Tipi", self._kitchen_type_combo)
+
+        self._extra_room_input = StyledLineEdit(placeholder="Örn: Giyinme Odası, Kiler, Çamaşır Odası (opsiyonel)")
+        self._add_form_row(layout, "Ek Oda Bilgisi", self._extra_room_input)
+
+        self._wc_type_combo = StyledComboBox()
+        self._wc_type_combo.addItem("-- Seçiniz --", "")
+        self._wc_type_combo.addItem("Alafranga (Klozet)", "ALAFRANGA")
+        self._wc_type_combo.addItem("Alaturka", "ALATURKA")
+        self._wc_type_combo.addItem("Her İkisi (Alafranga + Alaturka)", "BOTH")
+        self._add_form_row(layout, "WC Tipi", self._wc_type_combo)
+
         self._heating_type_combo = StyledComboBox()
         self._heating_type_combo.addItem("-- Seçiniz --", "")
         self._heating_type_combo.addItem("Doğalgaz", "NATURAL_GAS")
@@ -370,6 +389,16 @@ class PropertyEditDialog(QDialog):
         self._deed_status_combo.addItem("Hisseli Tapu", "SHARED")
         self._deed_status_combo.addItem("Diğer", "OTHER")
         self._add_form_row(layout, "Tapu Durumu", self._deed_status_combo)
+
+        # Site Bilgisi
+        self._add_section_title(layout, "SİTE BİLGİSİ")
+        self._in_complex_check = QCheckBox("Site İçerisinde Yer Alıyor")
+        checkbox_style = f"color: {Colors.TEXT_PRIMARY}; font-size: {FontSizes.NORMAL}pt;"
+        self._in_complex_check.setStyleSheet(checkbox_style)
+        layout.addWidget(self._in_complex_check)
+
+        self._complex_name_input = StyledLineEdit(placeholder="Sitenin Adı (örn: Flora Evleri Sitesi)")
+        self._add_form_row(layout, "Site Adı", self._complex_name_input)
 
         layout.addStretch()
         scroll.setWidget(container)
@@ -574,6 +603,21 @@ class PropertyEditDialog(QDialog):
             self._total_floor_input.setText(str(self.property.total_floor))
         if self.property.building_age is not None:
             self._building_age_input.setText(str(self.property.building_age))
+        if self.property.units_per_floor is not None:
+            self._units_per_floor_input.setText(str(self.property.units_per_floor))
+
+        if self.property.kitchen_type:
+            idx_kt = self._kitchen_type_combo.findData(self.property.kitchen_type)
+            if idx_kt != -1:
+                self._kitchen_type_combo.setCurrentIndex(idx_kt)
+
+        if self.property.extra_room:
+            self._extra_room_input.setText(self.property.extra_room)
+
+        if self.property.wc_type:
+            idx_wc = self._wc_type_combo.findData(self.property.wc_type)
+            if idx_wc != -1:
+                self._wc_type_combo.setCurrentIndex(idx_wc)
             
         if self.property.heating_type:
             idx_ht = self._heating_type_combo.findData(self.property.heating_type)
@@ -587,6 +631,10 @@ class PropertyEditDialog(QDialog):
             idx_ds = self._deed_status_combo.findData(self.property.deed_status)
             if idx_ds != -1:
                 self._deed_status_combo.setCurrentIndex(idx_ds)
+
+        self._in_complex_check.setChecked(self.property.in_complex)
+        if self.property.complex_name:
+            self._complex_name_input.setText(self.property.complex_name)
 
         # 3. Özellikler
         self._furnished_check.setChecked(self.property.furnished)
@@ -810,9 +858,15 @@ class PropertyEditDialog(QDialog):
         floor = safe_int(self._floor_input.text().strip())
         total_floor = safe_int(self._total_floor_input.text().strip())
         building_age = safe_int(self._building_age_input.text().strip())
+        units_per_floor = safe_int(self._units_per_floor_input.text().strip())
+        kitchen_type = self._kitchen_type_combo.currentData() or None
+        extra_room = self._extra_room_input.text().strip() or None
+        wc_type = self._wc_type_combo.currentData() or None
         heating_type = self._heating_type_combo.currentData() or None
         dues = safe_float(self._dues_input.text().strip())
         deed_status = self._deed_status_combo.currentData() or None
+        in_complex = self._in_complex_check.isChecked()
+        complex_name = self._complex_name_input.text().strip() or None
 
         furnished = self._furnished_check.isChecked()
         balcony = self._balcony_check.isChecked()
@@ -855,9 +909,15 @@ class PropertyEditDialog(QDialog):
                 "floor": floor,
                 "totalFloor": total_floor,
                 "buildingAge": building_age,
+                "unitsPerFloor": units_per_floor,
+                "kitchenType": kitchen_type,
+                "extraRoom": extra_room,
+                "wcType": wc_type,
                 "heatingType": heating_type,
                 "dues": dues,
                 "deedStatus": deed_status,
+                "inComplex": in_complex,
+                "complexName": complex_name,
                 "furnished": furnished,
                 "balcony": balcony,
                 "elevator": elevator,

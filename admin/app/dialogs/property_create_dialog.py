@@ -257,11 +257,30 @@ class PropertyCreateDialog(QDialog):
 
         self._building_age_input = StyledLineEdit(placeholder="Örn: 5")
         self._add_grid_form_row(grid, 2, 1, "Bina Yaşı", self._building_age_input)
+
+        self._units_per_floor_input = StyledLineEdit(placeholder="Örn: 2 veya 4")
+        self._add_grid_form_row(grid, 3, 0, "Kat Başına Daire", self._units_per_floor_input)
         
         layout.addLayout(grid)
 
         # Diğer Bilgiler
         self._add_section_title(layout, "DİĞER BİLGİLER")
+        self._kitchen_type_combo = StyledComboBox()
+        self._kitchen_type_combo.addItem("-- Seçiniz --", "")
+        self._kitchen_type_combo.addItem("Açık Mutfak (Amerikan)", "OPEN")
+        self._kitchen_type_combo.addItem("Kapalı Mutfak", "CLOSED")
+        self._add_form_row(layout, "Mutfak Tipi", self._kitchen_type_combo)
+
+        self._extra_room_input = StyledLineEdit(placeholder="Örn: Giyinme Odası, Kiler, Çamaşır Odası (opsiyonel)")
+        self._add_form_row(layout, "Ek Oda Bilgisi", self._extra_room_input)
+
+        self._wc_type_combo = StyledComboBox()
+        self._wc_type_combo.addItem("-- Seçiniz --", "")
+        self._wc_type_combo.addItem("Alafranga (Klozet)", "ALAFRANGA")
+        self._wc_type_combo.addItem("Alaturka", "ALATURKA")
+        self._wc_type_combo.addItem("Her İkisi (Alafranga + Alaturka)", "BOTH")
+        self._add_form_row(layout, "WC Tipi", self._wc_type_combo)
+
         self._heating_type_combo = StyledComboBox()
         self._heating_type_combo.addItem("-- Seçiniz --", "")
         self._heating_type_combo.addItem("Doğalgaz", "NATURAL_GAS")
@@ -283,6 +302,16 @@ class PropertyCreateDialog(QDialog):
         self._deed_status_combo.addItem("Hisseli Tapu", "SHARED")
         self._deed_status_combo.addItem("Diğer", "OTHER")
         self._add_form_row(layout, "Tapu Durumu", self._deed_status_combo)
+
+        # Site Bilgisi
+        self._add_section_title(layout, "SİTE BİLGİSİ")
+        self._in_complex_check = QCheckBox("Site İçerisinde Yer Alıyor")
+        checkbox_style = f"color: {Colors.TEXT_PRIMARY}; font-size: {FontSizes.NORMAL}pt;"
+        self._in_complex_check.setStyleSheet(checkbox_style)
+        layout.addWidget(self._in_complex_check)
+
+        self._complex_name_input = StyledLineEdit(placeholder="Sitenin Adı (örn: Flora Evleri Sitesi)")
+        self._add_form_row(layout, "Site Adı", self._complex_name_input)
 
         layout.addStretch()
         scroll.setWidget(container)
@@ -599,9 +628,15 @@ class PropertyCreateDialog(QDialog):
         floor = safe_int(self._floor_input.text().strip())
         total_floor = safe_int(self._total_floor_input.text().strip())
         building_age = safe_int(self._building_age_input.text().strip())
+        units_per_floor = safe_int(self._units_per_floor_input.text().strip())
+        kitchen_type = self._kitchen_type_combo.currentData() or None
+        extra_room = self._extra_room_input.text().strip() or None
+        wc_type = self._wc_type_combo.currentData() or None
         heating_type = self._heating_type_combo.currentData() or None
         dues = safe_float(self._dues_input.text().strip())
         deed_status = self._deed_status_combo.currentData() or None
+        in_complex = self._in_complex_check.isChecked()
+        complex_name = self._complex_name_input.text().strip() or None
 
         # 4. Özellikler Form Değerleri
         furnished = self._furnished_check.isChecked()
@@ -644,9 +679,15 @@ class PropertyCreateDialog(QDialog):
                 floor=floor,
                 total_floor=total_floor,
                 building_age=building_age,
+                units_per_floor=units_per_floor,
+                kitchen_type=kitchen_type,
+                extra_room=extra_room,
+                wc_type=wc_type,
                 heating_type=heating_type,
                 dues=dues,
                 deed_status=deed_status,
+                in_complex=in_complex,
+                complex_name=complex_name,
                 furnished=furnished,
                 balcony=balcony,
                 elevator=elevator,

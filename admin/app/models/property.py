@@ -89,6 +89,12 @@ class Property:
     heating_type: str | None = None
     dues: float | None = None
     deed_status: str | None = None
+    kitchen_type: str | None = None
+    extra_room: str | None = None
+    units_per_floor: int | None = None
+    wc_type: str | None = None
+    in_complex: bool = False
+    complex_name: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     video_url: str | None = None
@@ -142,6 +148,12 @@ class Property:
             heating_type=data.get("heatingType"),
             dues=float(data["dues"]) if data.get("dues") is not None else None,
             deed_status=data.get("deedStatus"),
+            kitchen_type=data.get("kitchenType"),
+            extra_room=data.get("extraRoom"),
+            units_per_floor=data.get("unitsPerFloor"),
+            wc_type=data.get("wcType"),
+            in_complex=data.get("inComplex", False),
+            complex_name=data.get("complexName"),
             latitude=data.get("latitude"),
             longitude=data.get("longitude"),
             video_url=data.get("videoUrl"),
@@ -281,6 +293,12 @@ class CreatePropertyRequest:
     heating_type: str | None = None
     dues: float | None = None
     deed_status: str | None = None
+    kitchen_type: str | None = None
+    extra_room: str | None = None
+    units_per_floor: int | None = None
+    wc_type: str | None = None
+    in_complex: bool = False
+    complex_name: str | None = None
     video_url: str | None = None
     virtual_tour_url: str | None = None
     furnished: bool = False
@@ -318,7 +336,18 @@ class CreatePropertyRequest:
             "eligibleForCredit": self.eligible_for_credit,
             "exchangeAvailable": self.exchange_available,
             "isFeatured": self.is_featured,
+            "inComplex": self.in_complex,
         }
+        if self.complex_name:
+            payload["complexName"] = self.complex_name
+        if self.kitchen_type:
+            payload["kitchenType"] = self.kitchen_type
+        if self.extra_room:
+            payload["extraRoom"] = self.extra_room
+        if self.units_per_floor is not None:
+            payload["unitsPerFloor"] = self.units_per_floor
+        if self.wc_type:
+            payload["wcType"] = self.wc_type
         if self.description:
             payload["description"] = self.description
         if self.gross_area is not None:
