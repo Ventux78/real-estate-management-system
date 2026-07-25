@@ -26,6 +26,7 @@ from app.api.exceptions import ApiException
 from app.config.constants import Colors, FontSizes, ListingType, PropertyType
 from app.widgets.styled_button import StyledButton
 from app.widgets.styled_input import StyledLineEdit, StyledComboBox, SearchableComboBox, StyledTextEdit
+from app.widgets.draggable_image_list import DraggableImageListWidget
 from app.utils.validators import validate_create_property_form
 
 
@@ -568,10 +569,9 @@ class PropertyEditDialog(QDialog):
         
         layout.addLayout(header_layout)
 
-        # List Widget
-        self.list_widget = QListWidget()
-        self.list_widget.setStyleSheet(f"background-color: {Colors.SURFACE}; border: none;")
-        self.list_widget.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        # List Widget (Sürüklenebilir Drag & Drop listesi)
+        self.list_widget = DraggableImageListWidget()
+        self.list_widget.order_changed.connect(self._on_drag_drop_reorder)
         layout.addWidget(self.list_widget)
 
         self._render_images()
@@ -1074,12 +1074,13 @@ class PropertyEditDialog(QDialog):
             self._swap_orders(idx, idx + 1)
 
     def _swap_orders(self, idx1: int, idx2: int) -> None:
+        previous_images = list(self.images)
         self.images[idx1], self.images[idx2] = self.images[idx2], self.images[idx1]
         for i, img in enumerate(self.images):
             self.images[i] = PropertyImage(
                 id=img.id, url=img.url, public_id=img.public_id,
                 width=img.width, height=img.height, format=img.format,
-                bytes=img.bytes, display_order=i+1, is_cover=img.is_cover
+                bytes=img.bytes, display_order=i+1, is_cover=(i == 0)
             )
         self._render_images()
         
@@ -1088,4 +1089,61 @@ class PropertyEditDialog(QDialog):
             property_service.reorder_images(self.property.id, orders)
             self.property_updated.emit()
         except ApiException as e:
+            self.images = previous_images
+            self._render_images()
             QMessageBox.critical(self, "Hata", f"Sıralama kaydedilemedi: {e.message}")
+
+    def _on_drag_drop_reorder(self, new_image_ids: list[str]) -> None:
+        """
+        Drag & Drop ile fotoğraf sırası değiştiğinde otomatik olarak API'ye kaydeder.
+        Sıralama değişince ilk fotoğraf otomatik olarak kapak fotoğrafı yapılır (Kural 5).
+        Hata durumunda eski sırayı geri yükler (Kural 4).
+        """
+        if not new_image_ids or len(new_image_ids) != len(self.images):
+            return
+
+        # 1. Yedeği al (Eski sırayı sakla - Kural 4)
+        previous_images = list(self.images)
+
+        # 2. Yeni ID sıralamasına göre self.images dizisini yeniden oluştur
+        id_to_img = {img.id: img for img in self.images}
+        reordered_images: list[PropertyImage] = []
+
+        for i, img_id in enumerate(new_image_ids):
+            if img_id in id_to_img:
+                original = id_to_img[img_id]
+                # İlk sıradaki fotoğraf otomatik kapak fotoğrafıdır (Kural 5)
+                is_cover = (i == 0)
+                reordered_images.append(
+                    PropertyImage(
+                        id=original.id,
+                        url=original.url,
+                        public_id=original.public_id,
+                        width=original.width,
+                        height=original.height,
+                        format=original.format,
+                        bytes=original.bytes,
+                        display_order=i + 1,
+                        is_cover=is_cover,
+                    )
+                )
+
+        self.images = reordered_images
+
+        # 3. Arayüzü yeni sırayla anında güncelle (Anlık görsel geribildirim)
+        self._render_images()
+
+        # 4. Otomatik olarak PATCH /properties/:id/images/order çağrısı yap (Kural 2)
+        orders = [{"id": img.id, "displayOrder": img.display_order} for img in self.images]
+        try:
+            property_service.reorder_images(self.property.id, orders)
+            self.property_updated.emit()
+        except ApiException as e:
+            # Hata durumu (Kural 4): Eski sırayı geri yükle ve kullanıcıyı bilgilendir
+            self.images = previous_images
+            self._render_images()
+            QMessageBox.critical(self, "Sıralama Kaydetme Hatası", f"Fotoğraf sıralaması kaydedilemedi:\n{e.message}")
+        except Exception as e:
+            self.images = previous_images
+            self._render_images()
+            QMessageBox.critical(self, "Sıralama Kaydetme Hatası", f"Beklenmeyen bir hata oluştu:\n{str(e)}")

@@ -305,7 +305,7 @@ class PropertyService:
         orders: [{"id": str, "displayOrder": int}, ...]
         """
         logger.info(f"PropertyService.reorder_images: property_id={property_id}")
-        api_client.patch(Endpoints.property_images_order(property_id), json={"images": orders})
+        api_client.patch(Endpoints.property_images_order(property_id), data={"images": orders})
 
 
 # Singleton instance

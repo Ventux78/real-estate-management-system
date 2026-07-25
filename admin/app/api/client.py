@@ -171,17 +171,31 @@ class ApiClient:
         self,
         endpoint: str,
         data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
         files: list[tuple[str, tuple[str, Any, str]]] | None = None,
     ) -> Any:
+        payload = data if data is not None else json
         if files is not None:
-            return self._request("POST", endpoint, data=data, files=files)
-        return self._request("POST", endpoint, json=data)
+            return self._request("POST", endpoint, data=payload, files=files)
+        return self._request("POST", endpoint, json=payload)
 
-    def put(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
-        return self._request("PUT", endpoint, json=data)
+    def put(
+        self,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        payload = data if data is not None else json
+        return self._request("PUT", endpoint, json=payload)
 
-    def patch(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
-        return self._request("PATCH", endpoint, json=data)
+    def patch(
+        self,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        payload = data if data is not None else json
+        return self._request("PATCH", endpoint, json=payload)
 
     def delete(self, endpoint: str) -> Any:
         return self._request("DELETE", endpoint)
