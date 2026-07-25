@@ -207,6 +207,7 @@ class PropertyEditDialog(QDialog):
         self.upload_worker = None
         self.images = list(property_data.images)
         self.images.sort(key=lambda x: x.display_order)
+        self._has_pending_image_order_changes: bool = False
         
         self.setWindowTitle(f"İlanı Düzenle: {self.property.title}")
         self.setModal(True)
@@ -561,9 +562,12 @@ class PropertyEditDialog(QDialog):
         self.progress_bar.hide()
         header_layout.addWidget(self.progress_bar)
         
-        header_layout.addStretch()
-        
-        self.upload_btn = StyledButton("Resim Yükle", variant="primary")
+        self.save_order_btn = StyledButton("Sıralamayı Kaydet", variant="primary")
+        self.save_order_btn.setEnabled(False)  # Değişiklik olmadıkça pasif (Kural 8)
+        self.save_order_btn.clicked.connect(self._on_save_image_order_clicked)
+        header_layout.addWidget(self.save_order_btn)
+
+        self.upload_btn = StyledButton("Resim Yükle", variant="secondary")
         self.upload_btn.clicked.connect(self._on_upload_clicked)
         header_layout.addWidget(self.upload_btn)
         
@@ -1029,7 +1033,31 @@ class PropertyEditDialog(QDialog):
         if self.upload_thread and self.upload_thread.isRunning():
             self.upload_thread.quit()
             self.upload_thread.wait(2000)
-        super().closeEvent(event)
+
+        if self._has_pending_image_order_changes:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Kaydedilmemiş Değişiklikler")
+            msg_box.setText("Kaydedilmemiş fotoğraf sıralaması mevcut. Kaydetmek istiyor musunuz?")
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+
+            btn_yes = msg_box.addButton("Evet", QMessageBox.ButtonRole.YesRole)
+            btn_no = msg_box.addButton("Hayır", QMessageBox.ButtonRole.NoRole)
+            btn_cancel = msg_box.addButton("İptal", QMessageBox.ButtonRole.RejectRole)
+
+            msg_box.exec()
+
+            clicked = msg_box.clickedButton()
+            if clicked == btn_yes:
+                if self._save_image_order():
+                    super().closeEvent(event)
+                else:
+                    event.ignore()
+            elif clicked == btn_no:
+                super().closeEvent(event)
+            else:
+                event.ignore()
+        else:
+            super().closeEvent(event)
 
     def _on_delete_image(self, image_id: str) -> None:
         reply = QMessageBox.question(self, "Onay", "Bu resmi silmek istediğinize emin misiniz?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -1074,7 +1102,6 @@ class PropertyEditDialog(QDialog):
             self._swap_orders(idx, idx + 1)
 
     def _swap_orders(self, idx1: int, idx2: int) -> None:
-        previous_images = list(self.images)
         self.images[idx1], self.images[idx2] = self.images[idx2], self.images[idx1]
         for i, img in enumerate(self.images):
             self.images[i] = PropertyImage(
@@ -1083,29 +1110,18 @@ class PropertyEditDialog(QDialog):
                 bytes=img.bytes, display_order=i+1, is_cover=(i == 0)
             )
         self._render_images()
-        
-        orders = [{"id": img.id, "displayOrder": img.display_order} for img in self.images]
-        try:
-            property_service.reorder_images(self.property.id, orders)
-            self.property_updated.emit()
-        except ApiException as e:
-            self.images = previous_images
-            self._render_images()
-            QMessageBox.critical(self, "Hata", f"Sıralama kaydedilemedi: {e.message}")
+        self._has_pending_image_order_changes = True
+        if hasattr(self, "save_order_btn"):
+            self.save_order_btn.setEnabled(True)
 
     def _on_drag_drop_reorder(self, new_image_ids: list[str]) -> None:
         """
-        Drag & Drop ile fotoğraf sırası değiştiğinde otomatik olarak API'ye kaydeder.
-        Sıralama değişince ilk fotoğraf otomatik olarak kapak fotoğrafı yapılır (Kural 5).
-        Hata durumunda eski sırayı geri yükler (Kural 4).
+        Drag & Drop ile fotoğraf sırası değiştiğinde yalnızca yerel durum (local state) güncellenir.
+        API çağrısı yapılmaz. Anında ve sıfır gecikmeli çalışır.
         """
         if not new_image_ids or len(new_image_ids) != len(self.images):
             return
 
-        # 1. Yedeği al (Eski sırayı sakla - Kural 4)
-        previous_images = list(self.images)
-
-        # 2. Yeni ID sıralamasına göre self.images dizisini yeniden oluştur
         id_to_img = {img.id: img for img in self.images}
         reordered_images: list[PropertyImage] = []
 
@@ -1129,21 +1145,37 @@ class PropertyEditDialog(QDialog):
                 )
 
         self.images = reordered_images
-
-        # 3. Arayüzü yeni sırayla anında güncelle (Anlık görsel geribildirim)
         self._render_images()
 
-        # 4. Otomatik olarak PATCH /properties/:id/images/order çağrısı yap (Kural 2)
+        # Kaydedilmemiş değişiklik durumuna geç (Kural 3 & 8)
+        self._has_pending_image_order_changes = True
+        if hasattr(self, "save_order_btn"):
+            self.save_order_btn.setEnabled(True)
+
+    def _save_image_order(self) -> bool:
+        """
+        Fotoğraf sıralamasını tek seferde PATCH /properties/:id/images/order API'sine kaydeder.
+        Başarılı ise True, başarısız ise False döner.
+        """
+        if not self._has_pending_image_order_changes:
+            return True
+
         orders = [{"id": img.id, "displayOrder": img.display_order} for img in self.images]
         try:
             property_service.reorder_images(self.property.id, orders)
+            self._has_pending_image_order_changes = False
+            if hasattr(self, "save_order_btn"):
+                self.save_order_btn.setEnabled(False)
             self.property_updated.emit()
+            return True
         except ApiException as e:
-            # Hata durumu (Kural 4): Eski sırayı geri yükle ve kullanıcıyı bilgilendir
-            self.images = previous_images
-            self._render_images()
+            # Hata durumunda yerel sıra korunur (Kural 6)
             QMessageBox.critical(self, "Sıralama Kaydetme Hatası", f"Fotoğraf sıralaması kaydedilemedi:\n{e.message}")
+            return False
         except Exception as e:
-            self.images = previous_images
-            self._render_images()
             QMessageBox.critical(self, "Sıralama Kaydetme Hatası", f"Beklenmeyen bir hata oluştu:\n{str(e)}")
+            return False
+
+    def _on_save_image_order_clicked(self) -> None:
+        if self._save_image_order():
+            QMessageBox.information(self, "Başarılı", "Fotoğraf sıralaması başarıyla kaydedildi.")
