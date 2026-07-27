@@ -18,9 +18,9 @@ export const DEFAULT_SITE_KEYWORDS = [
 export const DEFAULT_OG_IMAGE = '/hero-section.png';
 
 /**
- * Validates and gets the base URL for the site.
- * In production mode, throws an error if NEXT_PUBLIC_SITE_URL is not configured.
- * In development, falls back to http://localhost:3000.
+ * Gets the base URL for the site.
+ * Prefers NEXT_PUBLIC_SITE_URL, then VERCEL_URL, with a safe fallback
+ * to https://bastuggayrimenkul.com (prod) or http://localhost:3000 (dev) to prevent build failures.
  */
 export function getBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -29,10 +29,12 @@ export function getBaseUrl(): string {
     return envUrl.replace(/\/+$/, '');
   }
 
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
   if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'CRITICAL: NEXT_PUBLIC_SITE_URL environment variable is not defined in production environment!'
-    );
+    return 'https://bastuggayrimenkul.com';
   }
 
   return 'http://localhost:3000';
@@ -92,7 +94,6 @@ export function generatePropertyMetadata(property: Property): Metadata {
   const typeObj = PROPERTY_TYPE_MAP[property.propertyType] || { label: 'Gayrimenkul', lower: 'gayrimenkul' };
 
   // 1. Title Construction
-  // E.g., "3+1 Satılık Daire | Çukurova / Adana | Baştuğ Gayrimenkul"
   let mainSubject = typeObj.label;
   if (property.propertyType !== 'LAND' && property.roomCount !== undefined && property.roomCount !== null) {
     mainSubject = `${property.roomCount}+${property.livingRoomCount || 0} ${listingTypeStr} ${typeObj.label}`;
@@ -103,7 +104,6 @@ export function generatePropertyMetadata(property: Property): Metadata {
   const title = `${mainSubject} | ${property.district} / ${property.city} | ${DEFAULT_SITE_NAME}`;
 
   // 2. Description Construction
-  // E.g., "Adana Çukurova'da satılık 3+1 daire. 150 m². Asansörlü. Otoparklı. Detaylar için inceleyin."
   const roomDesc =
     property.propertyType !== 'LAND' && property.roomCount !== undefined && property.roomCount !== null
       ? ` ${property.roomCount}+${property.livingRoomCount || 0}`
