@@ -5,6 +5,13 @@ Amaç:
     Yeni gayrimenkul ilanı oluşturma formu dialog'u.
     Kullanıcı formu sekmeli yapıda doldurup kaydet butonuna bastığında
     POST /api/v1/properties çağrısı yapılır.
+
+Taslak (Draft) Sistemi:
+    Form alanları değiştiğinde 1.5 sn debounce ile yerel diske JSON
+    olarak kaydedilir. Dialog açılırken taslak varsa kullanıcıya
+    geri yükleme seçeneği sunulur. Başarılı kayıt veya kullanıcının
+    'Yeni İlan Oluştur' seçimi durumunda taslak silinir.
+    Pencere kapatılırsa taslak KORUNUR.
 """
 
 import webbrowser
@@ -23,11 +30,12 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QGridLayout,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 
 from app.services.property_service import property_service
 from app.services.location_service import location_service
 from app.services.maps_url_service import maps_url_service
+from app.services.draft_service import draft_service
 from app.models.property import CreatePropertyRequest
 from app.api.exceptions import ApiException
 from app.config.constants import Colors, FontSizes, ListingType, PropertyType
@@ -83,8 +91,19 @@ class PropertyCreateDialog(QDialog):
                 background-color: transparent;
             }}
         """)
+
+        # Debounce timer: 1.5 sn içinde yeni değişiklik gelmezse taslak kaydedilir
+        self._draft_timer = QTimer(self)
+        self._draft_timer.setSingleShot(True)
+        self._draft_timer.setInterval(1500)
+        self._draft_timer.timeout.connect(self._save_draft_now)
+
         self._setup_ui()
         self._update_auto_map_url()
+        self._connect_draft_signals()
+
+        # Taslak kontrolü — widget'lar hazır olduktan sonra yapılmalı
+        self._load_draft_if_exists()
 
     def _setup_ui(self) -> None:
         """Dialog UI bileşenlerini oluşturur."""
@@ -604,6 +623,110 @@ class PropertyCreateDialog(QDialog):
                 url = "https://" + url
             webbrowser.open(url)
 
+    # ─── Taslak (Draft) Sistemi ────────────────────────────────────────────────
+
+    def _schedule_draft_save(self) -> None:
+        """
+        Taslak kaydetme için debounce timer'ı (yeniden) başlatır.
+
+        Her çağrıda timer sıfırlanır; son değişiklikten 1.5 sn sonra
+        gerçek kayıt işlemi (_save_draft_now) tetiklenir.
+        Bu sayede her karakter yazımında diske yazılmaz.
+        """
+        self._draft_timer.start()
+
+    def _save_draft_now(self) -> None:
+        """
+        Mevcut form değerlerini taslak olarak diske kaydeder.
+
+        DraftService.build_draft_data() form → dict dönüşümünü yapar,
+        DraftService.save_draft() JSON'a yazar. Hata olursa UI donmaz.
+        """
+        data = draft_service.build_draft_data(self)
+        draft_service.save_draft(data)
+
+    def _connect_draft_signals(self) -> None:
+        """
+        Tüm form widget sinyallerini _schedule_draft_save'e bağlar.
+
+        Bu sayede herhangi bir alan değiştiğinde debounce başlar.
+        Widget'lar __init__ içinde _setup_ui() çağrısından sonra
+        oluşturulmuş olur.
+        """
+        # Temel Bilgiler
+        self._title_input.textChanged.connect(self._schedule_draft_save)
+        self._price_input.textChanged.connect(self._schedule_draft_save)
+        self._description_input.textChanged.connect(self._schedule_draft_save)
+        self._listing_type_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._property_type_combo.currentIndexChanged.connect(self._schedule_draft_save)
+
+        # Konut Detayları
+        self._gross_area_input.textChanged.connect(self._schedule_draft_save)
+        self._net_area_input.textChanged.connect(self._schedule_draft_save)
+        self._room_count_input.textChanged.connect(self._schedule_draft_save)
+        self._living_room_count_input.textChanged.connect(self._schedule_draft_save)
+        self._bathroom_count_input.textChanged.connect(self._schedule_draft_save)
+        self._floor_input.textChanged.connect(self._schedule_draft_save)
+        self._total_floor_input.textChanged.connect(self._schedule_draft_save)
+        self._building_age_input.textChanged.connect(self._schedule_draft_save)
+        self._units_per_floor_input.textChanged.connect(self._schedule_draft_save)
+        self._kitchen_type_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._extra_room_input.textChanged.connect(self._schedule_draft_save)
+        self._wc_type_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._heating_type_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._dues_input.textChanged.connect(self._schedule_draft_save)
+        self._deed_status_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._in_complex_check.toggled.connect(self._schedule_draft_save)
+        self._complex_name_input.textChanged.connect(self._schedule_draft_save)
+
+        # Özellikler
+        self._furnished_check.toggled.connect(self._schedule_draft_save)
+        self._balcony_check.toggled.connect(self._schedule_draft_save)
+        self._elevator_check.toggled.connect(self._schedule_draft_save)
+        self._parking_check.toggled.connect(self._schedule_draft_save)
+        self._eligible_for_credit_check.toggled.connect(self._schedule_draft_save)
+        self._exchange_available_check.toggled.connect(self._schedule_draft_save)
+        self._is_featured_check.toggled.connect(self._schedule_draft_save)
+        self._social_amenities_input.textChanged.connect(self._schedule_draft_save)
+
+        # Konum & Harita
+        self._province_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._district_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._neighborhood_combo.currentIndexChanged.connect(self._schedule_draft_save)
+        self._address_input.textChanged.connect(self._schedule_draft_save)
+        self._map_url_input.textChanged.connect(self._schedule_draft_save)
+        self._map_auto_radio.toggled.connect(self._schedule_draft_save)
+        self._map_manual_radio.toggled.connect(self._schedule_draft_save)
+
+    def _load_draft_if_exists(self) -> None:
+        """
+        Dialog açılırken taslak var mı kontrol eder.
+
+        Taslak mevcutsa DraftRestoreDialog açılır:
+        - Kullanıcı "Taslağı Geri Yükle" seçerse form doldurulur.
+        - Kullanıcı "Yeni İlan Oluştur" seçerse taslak silinir,
+          form boş kalır.
+
+        Taslak yoksa hiçbir şey yapılmaz.
+        """
+        if not draft_service.has_draft():
+            return
+
+        data = draft_service.load_draft()
+        if data is None:
+            return
+
+        from app.dialogs.draft_restore_dialog import DraftRestoreDialog
+        last_saved_at = data.get("last_saved_at")
+        restore_dlg = DraftRestoreDialog(last_saved_at=last_saved_at, parent=self)
+
+        if restore_dlg.exec() == QDialog.DialogCode.Accepted:
+            # Taslağı geri yükle
+            draft_service.restore_draft(self, data)
+        else:
+            # Yeni İlan Oluştur — taslağı sil
+            draft_service.delete_draft()
+
     # ─── Kaydetme İşlemi ───────────────────────────────────────────────────────
 
     def _on_save(self) -> None:
@@ -712,6 +835,8 @@ class PropertyCreateDialog(QDialog):
                 is_featured=is_featured,
             )
             property_service.create_property(request)
+            # Başarılı kayıt → taslak artık gerekli değil
+            draft_service.delete_draft()
             self.property_created.emit()
             self.accept()
         except ApiException as e:

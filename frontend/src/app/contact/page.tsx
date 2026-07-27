@@ -1,28 +1,31 @@
-import { Metadata } from 'next';
 import { Container } from '@/components/ui/Container';
 import { Section } from '@/components/ui/Section';
-import { Button } from '@/components/ui/Button';
 import { Mail, MapPin, Phone, MessageCircle } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata = generatePageMetadata({
   title: 'İletişim | Gayrimenkul',
   description: 'Bizimle iletişime geçin, sorularınızı yanıtlamaktan memnuniyet duyarız.',
-};
+  path: '/contact',
+});
 
 export default function ContactPage() {
   return (
     <>
       <section className="relative bg-[#121212] py-20 text-white overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40"
           style={{ backgroundImage: "url('/iletisim-foto.jpg')" }}
         />
         <div className="absolute inset-0 bg-[#121212]/60" />
         <Container className="relative z-10">
           <div className="max-w-3xl">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-6 text-white drop-shadow-md">İletişim</h1>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-6 text-white drop-shadow-md">
+              İletişim
+            </h1>
             <p className="text-xl text-[#A1A1AA] drop-shadow">
-              Sorularınız, önerileriniz veya ilan vermek için bize ulaşın. Ekibimiz en kısa sürede size dönüş yapacaktır.
+              Sorularınız, önerileriniz veya ilan vermek için bize ulaşın. Ekibimiz en kısa sürede size
+              dönüş yapacaktır.
             </p>
           </div>
         </Container>
@@ -31,7 +34,6 @@ export default function ContactPage() {
       <Section className="bg-[#121212]">
         <Container>
           <div className="grid md:grid-cols-2 gap-12">
-            
             {/* Contact Info */}
             <div className="space-y-8">
               <div>
@@ -41,14 +43,21 @@ export default function ContactPage() {
                     <MapPin className="w-6 h-6 text-brand-500 mt-1 mr-4" />
                     <div>
                       <h4 className="font-semibold text-white">Adres</h4>
-                      <p className="text-[#A1A1AA] mt-1">BAYDEM AYTEKİN PLAZA, Esentepe, PROFESÖR DOKTOR NECMETTİN ERBAKAN BULVARI NO:359/1 B BLOK ZEMİN KAT NO:31, 01170 Çukurova/Adana</p>
+                      <p className="text-[#A1A1AA] mt-1">
+                        BAYDEM AYTEKİN PLAZA, Esentepe, PROFESÖR DOKTOR NECMETTİN ERBAKAN BULVARI NO:359/1 B
+                        BLOK ZEMİN KAT NO:31, 01170 Çukurova/Adana
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start">
                     <Phone className="w-6 h-6 text-brand-500 mt-1 mr-4" />
                     <div>
                       <h4 className="font-semibold text-white">Telefon</h4>
-                      <p className="text-[#A1A1AA] mt-1">+90 553 504 8585 - Ali Baştuğ<br/>(0322) 504 02 39</p>
+                      <p className="text-[#A1A1AA] mt-1">
+                        +90 553 504 8585 - Ali Baştuğ
+                        <br />
+                        (0322) 504 02 39
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start">
@@ -63,13 +72,13 @@ export default function ContactPage() {
 
               {/* Map Embedded */}
               <div className="mt-8 rounded-xl overflow-hidden border border-[#333333] shadow-sm h-64 relative">
-                <iframe 
-                  width="100%" 
-                  height="100%" 
-                  frameBorder="0" 
-                  scrolling="no" 
-                  marginHeight={0} 
-                  marginWidth={0} 
+                <iframe
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  marginHeight={0}
+                  marginWidth={0}
                   src="https://maps.google.com/maps?q=37.058574,35.233126&t=&z=15&ie=UTF8&iwloc=&output=embed"
                   title="Ofis Konumu"
                   className="absolute inset-0"
@@ -98,11 +107,9 @@ export default function ContactPage() {
                 WhatsApp ile Mesaj Gönder
               </a>
             </div>
-
           </div>
         </Container>
       </Section>
     </>
   );
 }
-

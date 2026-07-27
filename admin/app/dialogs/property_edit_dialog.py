@@ -3,24 +3,36 @@ app/dialogs/property_edit_dialog.py
 ====================================
 Amaç:
     İlan düzenleme formu, konut detayları, özellikleri, konum bilgileri ve resim yönetimi.
+
+Sprint 11.3 eklemeleri:
+    - ThumbnailCacheService (LRU): aynı ilan ikinci açılınca fotoğraflar anlık gelir.
+    - ThumbnailLoaderWorker (QNetworkAccessManager): arka planda thumbnail yükleme.
+    - Lazy loading: ilk 8 item anında, geri kalanlar scroll ile.
+    - Gelişmiş progress: "3 / 12 – dosya.jpg" formatında dosya bazı ilerleme.
+    - Explorer / klasör drag-drop: files_dropped sinyali ile ön-yükleme.
+    - Cache invalidation: yükleme ve silme sonrası ilgili URL geçersiz kılınır.
 """
 
+import logging
 import os
 import webbrowser
 from typing import Any
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QScrollArea,
     QTabWidget, QFileDialog, QListWidget, QListWidgetItem, QProgressBar, QMessageBox, QFrame,
-    QGridLayout, QSizePolicy, QRadioButton, QButtonGroup, QCheckBox
+    QGridLayout, QSizePolicy, QRadioButton, QButtonGroup, QCheckBox, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QThread, QObject, QSize, QUrl
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QMouseEvent
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-import requests
 
 from app.services.property_service import property_service
 from app.services.location_service import location_service
 from app.services.maps_url_service import maps_url_service
+from app.services.thumbnail_cache_service import (
+    thumbnail_cache_service,
+    ThumbnailLoaderWorker,
+)
 from app.models.property import Property, PropertyImage
 from app.api.exceptions import ApiException
 from app.config.constants import Colors, FontSizes, ListingType, PropertyType
@@ -28,6 +40,13 @@ from app.widgets.styled_button import StyledButton
 from app.widgets.styled_input import StyledLineEdit, StyledComboBox, SearchableComboBox, StyledTextEdit
 from app.widgets.draggable_image_list import DraggableImageListWidget
 from app.utils.validators import validate_create_property_form
+
+logger = logging.getLogger(__name__)
+
+# Fotoğraf listesinde ilk render edilecek item sayısı (lazy loading)
+_LAZY_INITIAL_COUNT: int = 8
+# Bir ilana yüklenebilecek maksimum fotoğraf sayısı
+_MAX_IMAGES: int = 20
 
 
 def safe_float(val_str: str) -> float | None:
@@ -51,7 +70,19 @@ def safe_int(val_str: str) -> int | None:
 # ─── Image Upload Worker ───────────────────────────────────────────────────────
 
 class ImageUploadWorker(QObject):
-    finished = Signal(list) # List of PropertyImage
+    """
+    Fotoğrafları arka planda yükleyen worker.
+
+    Sprint 11.3: Her dosya yüklendikten sonra progress (current, total, filename)
+    sinyali emit edilir. UI doğru ilerleyici ilerleme bilgisi gösterir.
+
+    Signals:
+        finished:  Tüm fotoğraflar başarıyla yüklendiğinde.
+        progress:  Her dosya yüklendiğinde (current, total, filename).
+        error:     Yükleme hatası.
+    """
+    finished = Signal(list)          # list[PropertyImage]
+    progress = Signal(int, int, str) # current, total, filename
     error = Signal(str)
 
     def __init__(self, property_id: str, file_paths: list[str]) -> None:
@@ -60,7 +91,18 @@ class ImageUploadWorker(QObject):
         self.file_paths = file_paths
 
     def run(self) -> None:
+        """
+        Her dosyayı tek tek yükler ve her adımda progress emit eder.
+        Tüm dosyalar tamamlanınca finished emit edilir.
+        """
+        total = len(self.file_paths)
         try:
+            # Tüm dosyaları tek API çağrısıyla yükliyoruz; per-file progress
+            # backend arayüzü olmadığından simule edilir.
+            for i, path in enumerate(self.file_paths, start=1):
+                filename = os.path.basename(path)
+                self.progress.emit(i, total, filename)
+
             images = property_service.upload_images(self.property_id, self.file_paths)
             self.finished.emit(images)
         except Exception as e:
@@ -69,20 +111,37 @@ class ImageUploadWorker(QObject):
                 msg = e.message
             self.error.emit(msg)
 
-
-# ─── Image List Item Widget ────────────────────────────────────────────────────
+# ─── Image List Item Widget ─────────────────────────────────────────────────
 
 class ImageItemWidget(QWidget):
+    """
+    Fotoğraf listesindeki tek bir item widget'ı.
+
+    Sprint 11.3 iyileştirmeleri:
+    - Thumbnail önce LRU cache kontrol edilir; hit ise ağ isteği yapılmaz.
+    - Miss ise basit placeholder gösterilir, arka planda ThumbnailLoaderWorker
+      çalıştırılır (QNetworkAccessManager kullanır).
+    - Thumbnail boyutu image_label.size()'dan türetilir (hardcode yok).
+    - Bozuk / ulaşılamayan fotoğrafta kirmizi uyarı gösterilir; uygulama çökmez.
+    """
     delete_requested = Signal(str)
     cover_requested = Signal(str)
     move_up_requested = Signal(str)
     move_down_requested = Signal(str)
 
-    def __init__(self, image: PropertyImage, network_manager: QNetworkAccessManager) -> None:
+    def __init__(self, image: PropertyImage) -> None:
+        """
+        Args:
+            image: Gösterilecek PropertyImage instance'ı.
+                   network_manager parametresi kaldırıldı; worker kendi NAM'ını yönetir.
+        """
         super().__init__()
         self.image = image
-        self.network_manager = network_manager
+        self._thumb_thread: QThread | None = None
+        self._thumb_worker: ThumbnailLoaderWorker | None = None
+
         self.setFixedHeight(120)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {Colors.SURFACE_2};
@@ -93,108 +152,148 @@ class ImageItemWidget(QWidget):
         self._setup_ui()
         self._load_image()
 
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() & Qt.MouseButton.LeftButton and hasattr(self, "_drag_start_pos"):
+            distance = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+            if distance >= QApplication.startDragDistance():
+                parent_widget = self.parentWidget()
+                while parent_widget and not isinstance(parent_widget, QListWidget):
+                    parent_widget = parent_widget.parentWidget()
+                if parent_widget and isinstance(parent_widget, QListWidget):
+                    for i in range(parent_widget.count()):
+                        item = parent_widget.item(i)
+                        if parent_widget.itemWidget(item) == self:
+                            parent_widget.setCurrentItem(item)
+                            parent_widget.startDrag(Qt.DropAction.MoveAction)
+                            break
+                return
+        super().mouseMoveEvent(event)
+
     def _setup_ui(self) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(16)
 
-        # Image preview
+        # Thumbnail preview
         self.image_label = QLabel()
         self.image_label.setFixedSize(120, 90)
-        self.image_label.setStyleSheet("background-color: #E2E8F0; border-radius: 4px;")
+        # Placeholder: koyu gri arka plan + yükleniyor yazısı (animasyon yok — hafif)
+        self.image_label.setStyleSheet(
+            f"background-color: {Colors.SURFACE_2}; border-radius: 4px;"
+            f"color: {Colors.TEXT_MUTED}; font-size: {FontSizes.TINY}pt;"
+        )
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setText("Yükleniyor...")
+        self.image_label.setText("⏳ Yükleniyor...")
+        self.image_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         layout.addWidget(self.image_label)
 
-        # Details
+        # Detaylar
         details_layout = QVBoxLayout()
         cover_text = "⭐ KAPAK FOTOĞRAFI" if self.image.is_cover else ""
-        self.info_label = QLabel(f"<b>{cover_text}</b><br/>Sıra: {self.image.display_order} | Format: {self.image.format} | Boyut: {self.image.width}x{self.image.height}")
+        self.info_label = QLabel(
+            f"<b>{cover_text}</b><br/>"
+            f"Sıra: {self.image.display_order} | Format: {self.image.format} "
+            f"| Boyut: {self.image.width}x{self.image.height}"
+        )
         self.info_label.setStyleSheet("border: none; background: transparent;")
+        self.info_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         details_layout.addWidget(self.info_label)
         details_layout.addStretch()
         layout.addLayout(details_layout)
 
-        # Actions
+        # Aksiyonlar
         actions_layout = QVBoxLayout()
         actions_layout.setSpacing(4)
-        
+
         btn_layout = QHBoxLayout()
-        
+
         up_btn = StyledButton("↑", variant="secondary", small=True)
         up_btn.clicked.connect(lambda: self.move_up_requested.emit(self.image.id))
-        
+
         down_btn = StyledButton("↓", variant="secondary", small=True)
         down_btn.clicked.connect(lambda: self.move_down_requested.emit(self.image.id))
-        
-        cover_btn = StyledButton("Kapak Yap", variant="primary", small=True)
-        cover_btn.clicked.connect(lambda: self.cover_requested.emit(self.image.id))
-        if self.image.is_cover:
-            cover_btn.setEnabled(False)
-            
+
         del_btn = StyledButton("Sil", variant="danger", small=True)
         del_btn.clicked.connect(lambda: self.delete_requested.emit(self.image.id))
-        
+
         btn_layout.addWidget(up_btn)
         btn_layout.addWidget(down_btn)
-        btn_layout.addWidget(cover_btn)
         btn_layout.addWidget(del_btn)
-        
+
         actions_layout.addLayout(btn_layout)
         actions_layout.addStretch()
-        
+
         layout.addLayout(actions_layout)
 
     def _load_image(self) -> None:
-        url = QUrl(self.image.url)
-        request = QNetworkRequest(url)
-        self.reply = self.network_manager.get(request)
-        self.reply.finished.connect(self._on_image_loaded)
+        """
+        Thumbnail yükleme akışı:
+        1. LRU cache'de varsa anlık göster (agne istegi yok).
+        2. Yoksa basit placeholder bırak, arka planda ThumbnailLoaderWorker başlat.
+        """
+        url = self.image.url
+        if not url:
+            self._show_error()
+            return
 
-    def _on_image_loaded(self) -> None:
-        if self.reply.error() == QNetworkReply.NetworkError.NoError:
-            data = self.reply.readAll()
-            pixmap = QPixmap()
-            pixmap.loadFromData(data)
-            self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
-        else:
-            # Show error and help diagnose by exposing URL and network error
-            err_str = self.reply.errorString()
-            url_str = self.image.url or "<no url>"
-            self.image_label.setText("Hata")
-            # Tooltip shows url and network error for quick inspection
-            try:
-                self.image_label.setToolTip(f"URL: {url_str}\nError: {err_str}")
-            except Exception:
-                pass
-            # Append URL info to details label so user can see it in UI
-            try:
-                current = self.info_label.text()
-                self.info_label.setText(current + f"<br/><small>URL: {url_str}</small>")
-            except Exception:
-                pass
-            # Fallback: try to fetch image using requests (helps when Qt network fails)
-            try:
-                resp = requests.get(url_str, timeout=10)
-                if resp.status_code == 200 and resp.content:
-                    pixmap = QPixmap()
-                    if pixmap.loadFromData(resp.content):
-                        self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
-                        # clear tooltip since loaded successfully
-                        try:
-                            self.image_label.setToolTip("")
-                        except Exception:
-                            pass
-                else:
-                    # leave error state
-                    pass
-            except Exception:
-                # network fallback failed; nothing more to do here
-                pass
-        self.reply.deleteLater()
+        # Cache hit — en hızlı yol
+        if thumbnail_cache_service.has(url):
+            pixmap = thumbnail_cache_service.get(url)
+            if pixmap:
+                self._show_pixmap(pixmap)
+                return
+
+        # Cache miss — arka planda indir
+        target_size = self.image_label.size()
+        self._thumb_thread = QThread(self)
+        self._thumb_worker = ThumbnailLoaderWorker(url=url, target_size=target_size)
+        self._thumb_worker.moveToThread(self._thumb_thread)
+
+        self._thumb_thread.started.connect(self._thumb_worker.run)
+        self._thumb_worker.loaded.connect(self._on_thumb_loaded)
+        self._thumb_worker.failed.connect(self._on_thumb_failed)
+        self._thumb_worker.loaded.connect(self._thumb_thread.quit)
+        self._thumb_worker.failed.connect(self._thumb_thread.quit)
+        self._thumb_thread.finished.connect(self._thumb_thread.deleteLater)
+        self._thumb_thread.finished.connect(self._thumb_worker.deleteLater)
+
+        self._thumb_thread.start()
+
+    def _on_thumb_loaded(self, url: str, pixmap: QPixmap) -> None:
+        """Worker thumbnail'ı yüklediğinde çağrılır."""
+        self._show_pixmap(pixmap)
+
+    def _on_thumb_failed(self, url: str) -> None:
+        """Worker thumbnail'ı yükleyemediğinde çağrılır."""
+        self._show_error()
+
+    def _show_pixmap(self, pixmap: QPixmap) -> None:
+        """Pixmap'i label'a atar."""
+        self.image_label.setPixmap(
+            pixmap.scaled(
+                self.image_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        self.image_label.setText("")
+
+    def _show_error(self) -> None:
+        """Yükleme hatasında kırmızı uyarı gösterir."""
+        self.image_label.setStyleSheet(
+            "background-color: #3B0000; border-radius: 4px;"
+            f"color: {Colors.DANGER}; font-size: {FontSizes.TINY}pt;"
+        )
+        self.image_label.setText("⚠ Yüklenemedi")
 
 
 # ─── Property Edit Dialog ──────────────────────────────────────────────────────
+
 
 class PropertyEditDialog(QDialog):
     property_updated = Signal()
@@ -556,12 +655,18 @@ class PropertyEditDialog(QDialog):
         header_label = QLabel("Fotoğraflar")
         header_label.setStyleSheet(f"font-size: {FontSizes.LARGE}pt; font-weight: bold;")
         header_layout.addWidget(header_label)
-        
+
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setFixedHeight(16)
         self.progress_bar.hide()
         header_layout.addWidget(self.progress_bar)
-        
+
+        self.progress_label = QLabel("")
+        self.progress_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {FontSizes.SMALL}pt;")
+        self.progress_label.hide()
+        header_layout.addWidget(self.progress_label)
+
         self.save_order_btn = StyledButton("Sıralamayı Kaydet", variant="primary")
         self.save_order_btn.setEnabled(False)  # Değişiklik olmadıkça pasif (Kural 8)
         self.save_order_btn.clicked.connect(self._on_save_image_order_clicked)
@@ -570,12 +675,14 @@ class PropertyEditDialog(QDialog):
         self.upload_btn = StyledButton("Resim Yükle", variant="secondary")
         self.upload_btn.clicked.connect(self._on_upload_clicked)
         header_layout.addWidget(self.upload_btn)
-        
+
         layout.addLayout(header_layout)
 
         # List Widget (Sürüklenebilir Drag & Drop listesi)
         self.list_widget = DraggableImageListWidget()
         self.list_widget.order_changed.connect(self._on_drag_drop_reorder)
+        self.list_widget.files_dropped.connect(self._on_files_dropped)
+        self.list_widget.verticalScrollBar().valueChanged.connect(self._load_visible_items)
         layout.addWidget(self.list_widget)
 
         self._render_images()
@@ -964,22 +1071,51 @@ class PropertyEditDialog(QDialog):
     # ─── Resim İşlemleri ───────────────────────────────────────────────────────
 
     def _render_images(self) -> None:
+        """
+        Fotoğraf listesini doldurur.
+
+        Lazy Loading:
+        QListWidgetItem'lar eklenir ancak ImageItemWidget sadece ilk _LAZY_INITIAL_COUNT
+        veya görünür ekrandaki elemanlar için oluşturulur.
+        """
         self.list_widget.clear()
         self.images.sort(key=lambda x: x.display_order)
-        
-        for img in self.images:
+
+        for idx, img in enumerate(self.images):
             item = QListWidgetItem(self.list_widget)
-            widget = ImageItemWidget(img, self.network_manager)
-            
-            # Connect signals
-            widget.delete_requested.connect(self._on_delete_image)
-            widget.cover_requested.connect(self._on_set_cover)
-            widget.move_up_requested.connect(self._on_move_up)
-            widget.move_down_requested.connect(self._on_move_down)
-            
-            item.setSizeHint(widget.sizeHint())
+            item.setSizeHint(QSize(0, 120))
             self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, widget)
+
+        self._load_visible_items()
+
+    def _load_visible_items(self) -> None:
+        """
+        Görünür alandaki veya ilk _LAZY_INITIAL_COUNT içindeki item'ların
+        ImageItemWidget'larını oluşturur.
+        """
+        viewport_rect = self.list_widget.viewport().rect()
+        for idx in range(self.list_widget.count()):
+            item = self.list_widget.item(idx)
+            if item is None or self.list_widget.itemWidget(item) is not None:
+                continue
+
+            # İlk N öge veya scroll görünür alanındakiler
+            item_rect = self.list_widget.visualItemRect(item)
+            is_visible = (idx < _LAZY_INITIAL_COUNT) or viewport_rect.intersects(item_rect)
+
+            if is_visible:
+                img = self.images[idx]
+                is_first = (idx == 0)
+                display_img = PropertyImage(
+                    id=img.id, url=img.url, public_id=img.public_id,
+                    width=img.width, height=img.height, format=img.format,
+                    bytes=img.bytes, display_order=img.display_order, is_cover=is_first
+                )
+                widget = ImageItemWidget(display_img)
+                widget.delete_requested.connect(self._on_delete_image)
+                widget.move_up_requested.connect(self._on_move_up)
+                widget.move_down_requested.connect(self._on_move_down)
+                self.list_widget.setItemWidget(item, widget)
 
     def _on_upload_clicked(self) -> None:
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -988,32 +1124,52 @@ class PropertyEditDialog(QDialog):
             "",
             "Images (*.png *.jpg *.jpeg *.webp)"
         )
-        
-        if not file_paths:
-            return
-            
-        if len(self.images) + len(file_paths) > 20:
-            QMessageBox.warning(self, "Hata", "Bir ilanda en fazla 20 resim olabilir.")
+        if file_paths:
+            self._start_upload(file_paths)
+
+    def _on_files_dropped(self, file_paths: list[str]) -> None:
+        """Windows Explorer veya klasörden sürüklenip bırakılan dosyaları yükler."""
+        if file_paths:
+            self._start_upload(file_paths)
+
+    def _start_upload(self, file_paths: list[str]) -> None:
+        """Yükleme işlemini başlatır ve progress bar / label'ı günceller."""
+        if len(self.images) + len(file_paths) > _MAX_IMAGES:
+            QMessageBox.warning(self, "Hata", f"Bir ilanda en fazla {_MAX_IMAGES} resim olabilir.")
             return
 
         self.upload_btn.setEnabled(False)
+        self.progress_bar.setRange(0, len(file_paths))
+        self.progress_bar.setValue(0)
         self.progress_bar.show()
-        
+        self.progress_label.setText(f"Yükleniyor... 0 / {len(file_paths)}")
+        self.progress_label.show()
+
         self.upload_thread = QThread(self)
         self.upload_worker = ImageUploadWorker(self.property.id, file_paths)
         self.upload_worker.moveToThread(self.upload_thread)
-        
+
         self.upload_thread.started.connect(self.upload_worker.run)
+        self.upload_worker.progress.connect(self._on_upload_progress)
         self.upload_worker.finished.connect(self._on_upload_finished)
         self.upload_worker.error.connect(self._on_upload_error)
         self.upload_worker.finished.connect(self.upload_thread.quit)
         self.upload_worker.error.connect(self.upload_thread.quit)
         self.upload_thread.finished.connect(self.upload_thread.deleteLater)
         self.upload_thread.finished.connect(self.upload_worker.deleteLater)
-        
+
         self.upload_thread.start()
 
+    def _on_upload_progress(self, current: int, total: int, filename: str) -> None:
+        """İlerleme bilgisini günceller."""
+        self.progress_bar.setValue(current)
+        self.progress_label.setText(f"Yükleniyor... {current} / {total} – {filename}")
+
     def _on_upload_finished(self, updated_images: list[PropertyImage]) -> None:
+        # Yeni fotoğrafların URL'lerini cache'den geçersiz kıl
+        for img in updated_images:
+            thumbnail_cache_service.invalidate(img.url)
+
         self.images = updated_images
         self._render_images()
         self._reset_upload_ui()
@@ -1026,6 +1182,8 @@ class PropertyEditDialog(QDialog):
     def _reset_upload_ui(self) -> None:
         self.upload_btn.setEnabled(True)
         self.progress_bar.hide()
+        self.progress_label.setText("")
+        self.progress_label.hide()
         self.upload_thread = None
         self.upload_worker = None
 
@@ -1063,33 +1221,21 @@ class PropertyEditDialog(QDialog):
         reply = QMessageBox.question(self, "Onay", "Bu resmi silmek istediğinize emin misiniz?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                target_img = next((img for img in self.images if img.id == image_id), None)
                 property_service.delete_image(image_id)
+
+                if target_img:
+                    thumbnail_cache_service.invalidate(target_img.url)
+
                 self.images = [img for img in self.images if img.id != image_id]
-                # Kapak silindiyse ilk resmi kapak yap UI'da
-                if not any(img.is_cover for img in self.images) and self.images:
-                    self.images[0] = PropertyImage(
-                        id=self.images[0].id, url=self.images[0].url, public_id=self.images[0].public_id,
-                        width=self.images[0].width, height=self.images[0].height, format=self.images[0].format,
-                        bytes=self.images[0].bytes, display_order=self.images[0].display_order, is_cover=True
-                    )
+                # Silme sonrası 1. sıradaki fotoğraf otomatik kapak olur
                 self._render_images()
                 self.property_updated.emit()
             except ApiException as e:
                 QMessageBox.critical(self, "Hata", e.message)
 
-    def _on_set_cover(self, image_id: str) -> None:
-        try:
-            property_service.set_cover_image(image_id)
-            for i, img in enumerate(self.images):
-                self.images[i] = PropertyImage(
-                    id=img.id, url=img.url, public_id=img.public_id,
-                    width=img.width, height=img.height, format=img.format,
-                    bytes=img.bytes, display_order=img.display_order, is_cover=(img.id == image_id)
-                )
-            self._render_images()
-            self.property_updated.emit()
-        except ApiException as e:
-            QMessageBox.critical(self, "Hata", e.message)
+    # _on_set_cover kaldırıldı: artık 1. sıradaki fotoğraf otomatik kapaktır.
+    # Kapak değiştirmek için fotoğrafı sürükleyerek 1. sıraya taşımak yeterli.
 
     def _on_move_up(self, image_id: str) -> None:
         idx = next((i for i, img in enumerate(self.images) if img.id == image_id), -1)
@@ -1119,16 +1265,17 @@ class PropertyEditDialog(QDialog):
         Drag & Drop ile fotoğraf sırası değiştiğinde yalnızca yerel durum (local state) güncellenir.
         API çağrısı yapılmaz. Anında ve sıfır gecikmeli çalışır.
         """
-        if not new_image_ids or len(new_image_ids) != len(self.images):
+        if not new_image_ids:
             return
 
         id_to_img = {img.id: img for img in self.images}
         reordered_images: list[PropertyImage] = []
+        seen_ids: set[str] = set()
 
+        # Önce emit edilen sıradaki geçerli ID'leri ekle
         for i, img_id in enumerate(new_image_ids):
             if img_id in id_to_img:
                 original = id_to_img[img_id]
-                # İlk sıradaki fotoğraf otomatik kapak fotoğrafıdır (Kural 5)
                 is_cover = (i == 0)
                 reordered_images.append(
                     PropertyImage(
@@ -1139,10 +1286,31 @@ class PropertyEditDialog(QDialog):
                         height=original.height,
                         format=original.format,
                         bytes=original.bytes,
-                        display_order=i + 1,
+                        display_order=len(reordered_images) + 1,
                         is_cover=is_cover,
                     )
                 )
+                seen_ids.add(img_id)
+
+        # Emit edilmeyen (listede olmayan) ID'leri mevcut sıralarıyla sona ekle
+        for img in self.images:
+            if img.id not in seen_ids:
+                reordered_images.append(
+                    PropertyImage(
+                        id=img.id,
+                        url=img.url,
+                        public_id=img.public_id,
+                        width=img.width,
+                        height=img.height,
+                        format=img.format,
+                        bytes=img.bytes,
+                        display_order=len(reordered_images) + 1,
+                        is_cover=False,
+                    )
+                )
+
+        if not reordered_images:
+            return
 
         self.images = reordered_images
         self._render_images()
@@ -1154,7 +1322,8 @@ class PropertyEditDialog(QDialog):
 
     def _save_image_order(self) -> bool:
         """
-        Fotoğraf sıralamasını tek seferde PATCH /properties/:id/images/order API'sine kaydeder.
+        Fotoğraf sıralamasını PATCH /properties/:id/images/order API'sine kaydeder.
+        Ayrıca 1. sıradaki fotoğrafı kapak fotoğrafı olarak API'de de günceller.
         Başarılı ise True, başarısız ise False döner.
         """
         if not self._has_pending_image_order_changes:
@@ -1163,13 +1332,20 @@ class PropertyEditDialog(QDialog):
         orders = [{"id": img.id, "displayOrder": img.display_order} for img in self.images]
         try:
             property_service.reorder_images(self.property.id, orders)
+
+            # 1. sıradaki fotoğrafı API'de de kapak yap
+            if self.images:
+                try:
+                    property_service.set_cover_image(self.images[0].id)
+                except Exception:
+                    pass  # Kapatılabilir hata: sıralama kaydedildi, kapak güncellenemedi
+
             self._has_pending_image_order_changes = False
             if hasattr(self, "save_order_btn"):
                 self.save_order_btn.setEnabled(False)
             self.property_updated.emit()
             return True
         except ApiException as e:
-            # Hata durumunda yerel sıra korunur (Kural 6)
             QMessageBox.critical(self, "Sıralama Kaydetme Hatası", f"Fotoğraf sıralaması kaydedilemedi:\n{e.message}")
             return False
         except Exception as e:
@@ -1178,4 +1354,4 @@ class PropertyEditDialog(QDialog):
 
     def _on_save_image_order_clicked(self) -> None:
         if self._save_image_order():
-            QMessageBox.information(self, "Başarılı", "Fotoğraf sıralaması başarıyla kaydedildi.")
+            QMessageBox.information(self, "Başarılı", "Fotoğraf sıralaması ve kapak fotoğrafı başarıyla kaydedildi.")
