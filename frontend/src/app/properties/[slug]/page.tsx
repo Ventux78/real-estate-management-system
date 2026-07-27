@@ -406,7 +406,7 @@ export default async function PropertyDetailPage({
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#27272A] hover:bg-[#3F3F46] text-white font-medium rounded-xl border border-[#3F3F46] transition-colors shadow-sm"
                       >
                         <MapPin className="w-5 h-5 text-red-500" />
-                        <span>Google Maps'te Gör</span>
+                        <span>Google Maps&apos;te Gör</span>
                         <ExternalLink className="w-4 h-4 text-slate-400 ml-auto" />
                       </a>
                     )}
